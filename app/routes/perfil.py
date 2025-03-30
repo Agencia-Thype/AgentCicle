@@ -5,6 +5,9 @@ from app.schemas.usuario_schemas import PerfilUsuario
 from app.services.auth_service import verificar_token
 from app.db.database import get_db
 from app.models.sqlalchemy_models import Usuario, HistoricoPeso
+import io
+import matplotlib.pyplot as plt
+from fastapi.responses import StreamingResponse
 
 router = APIRouter(tags=["Perfil"])
 
@@ -85,3 +88,38 @@ def atualizar_perfil(
 
     db.commit()
     return {"mensagem": "Perfil atualizado com sucesso"}
+
+@router.get("/perfil/grafico")
+def grafico_historico_peso(
+    db: Session = Depends(get_db),
+    email: str = Depends(verificar_token)
+):
+    usuario = db.query(Usuario).filter(Usuario.email == email).first()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuária não encontrada")
+
+    historico = db.query(HistoricoPeso).filter(HistoricoPeso.user_id == usuario.id).order_by(HistoricoPeso.data_registro).all()
+
+    if not historico:
+        raise HTTPException(status_code=404, detail="Sem histórico de peso encontrado.")
+
+    datas = [h.data_registro for h in historico]
+    pesos = [h.peso for h in historico]
+    imcs = [h.imc for h in historico]
+
+    plt.figure(figsize=(10, 5))
+    plt.plot(datas, pesos, label="Peso (kg)", marker='o')
+    plt.plot(datas, imcs, label="IMC", marker='x')
+    plt.xlabel("Data")
+    plt.ylabel("Valores")
+    plt.title("Histórico de Peso e IMC")
+    plt.legend()
+    plt.grid(True)
+
+    buf = io.BytesIO()
+    plt.tight_layout()
+    plt.savefig(buf, format="png")
+    buf.seek(0)
+    plt.close()
+
+    return StreamingResponse(buf, media_type="image/png")
