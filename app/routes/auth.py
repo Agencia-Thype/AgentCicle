@@ -1,11 +1,12 @@
 from fastapi import APIRouter, HTTPException, Depends
+from app.routes.usuario import redefinir_senha
 from sqlalchemy.orm import Session
 from datetime import datetime
 
 from app.db.database import get_db
 from app.models.sqlalchemy_models import Usuario
 from app.schemas.usuario_schemas import (
-    UsuarioRegister, UsuarioLogin, ValidarEmailRequest, TokenResponse
+    RedefinirSenhaRequest, UsuarioRegister, UsuarioLogin, ValidarEmailRequest, TokenResponse
 )
 from app.services.auth_service import (
     criar_token_jwt, hash_senha, verificar_senha,
@@ -84,3 +85,7 @@ def get_usuario_logado(email: str = Depends(verificar_token), db: Session = Depe
         "email": user.email,
         "verificado": bool(user.verificado)
     }
+
+@router.post("/redefinir-senha")
+def redefinir_senha_endpoint(req: RedefinirSenhaRequest, db: Session = Depends(get_db)):
+    return redefinir_senha(req, db)

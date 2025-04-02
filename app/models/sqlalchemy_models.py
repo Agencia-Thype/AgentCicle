@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, Numeric, Text, ForeignKey
+from sqlalchemy import Column, DateTime, Integer, String, Date, Numeric, Text, ForeignKey
 from sqlalchemy.orm import relationship
 from app.db.database import Base
 
@@ -18,6 +18,8 @@ class Usuario(Base):
     peso_atual = Column(Numeric)
     objetivo = Column(Text)
     data_peso_atual = Column(Date)
+    tentativas_codigo = Column(Integer, default=0)
+    validade_codigo = Column(DateTime)
 
     historico_peso = relationship("HistoricoPeso", back_populates="usuario")
 
