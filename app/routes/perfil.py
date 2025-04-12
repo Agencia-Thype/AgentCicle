@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import date
-from app.schemas.usuario_schemas import PerfilUsuario
+from app.schemas.usuario_schemas import AtualizarPerfil, PerfilUsuario
 from app.services.auth_service import verificar_token
 from app.db.database import get_db
 from app.models.sqlalchemy_models import Usuario, HistoricoPeso
@@ -11,7 +11,7 @@ from fastapi.responses import StreamingResponse
 
 router = APIRouter(tags=["Perfil"])
 
-@router.get("/perfil", response_model=PerfilUsuario)
+@router.get("/perfil", response_model=AtualizarPerfil)
 def get_perfil(
     db: Session = Depends(get_db),
     email: str = Depends(verificar_token)
@@ -50,6 +50,7 @@ def get_perfil(
         peso_atual=float(usuario.peso_atual) if usuario.peso_atual else None,
         objetivo=usuario.objetivo,
         data_menstruacao=usuario.data_menstruacao,
+        duracao_ciclo=usuario.duracao_ciclo,
         imc=imc,
         historico_peso=historico_formatado
     )
@@ -65,13 +66,17 @@ def atualizar_perfil(
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuária não encontrada")
 
-    if perfil.altura:
+    if perfil.altura is not None:
         usuario.altura = perfil.altura
-    if perfil.peso_atual:
+
+    if perfil.peso_atual is not None:
         usuario.peso_atual = perfil.peso_atual
         usuario.data_peso_atual = date.today()
 
-        imc = perfil.peso_atual / (perfil.altura ** 2) if perfil.altura else None
+        imc = None
+        if perfil.altura:
+            imc = perfil.peso_atual / (perfil.altura ** 2)
+
         novo_historico = HistoricoPeso(
             user_id=usuario.id,
             peso=perfil.peso_atual,
@@ -81,13 +86,18 @@ def atualizar_perfil(
         )
         db.add(novo_historico)
 
-    if perfil.objetivo:
+    if perfil.objetivo is not None:
         usuario.objetivo = perfil.objetivo
-    if perfil.data_menstruacao:
+
+    if perfil.data_menstruacao is not None:
         usuario.data_menstruacao = perfil.data_menstruacao
+
+    if perfil.duracao_ciclo is not None:
+        usuario.duracao_ciclo = perfil.duracao_ciclo
 
     db.commit()
     return {"mensagem": "Perfil atualizado com sucesso"}
+
 
 @router.get("/perfil/grafico")
 def grafico_historico_peso(

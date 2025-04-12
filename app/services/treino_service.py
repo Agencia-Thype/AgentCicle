@@ -1,15 +1,17 @@
-# app/services/treino_service.py
 from datetime import datetime
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+from app.models.sqlalchemy_models import Usuario, TreinoRealizado
 
-def calcular_fase(data_menstrucao):
+def calcular_fase(data_menstruacao):
     fases = [
         ("Menstruação", 0, 5),
         ("Folicular", 6, 12),
         ("Ovulatória", 13, 16),
-        ("Lútea", 17, 28)
+        ("Lútea", 17, 28),
     ]
     hoje = datetime.now().date()
-    inicio = datetime.strptime(data_menstrucao, "%Y-%m-%d").date()
+    inicio = datetime.strptime(data_menstruacao, "%Y-%m-%d").date()
     dias = (hoje - inicio).days % 28
 
     for nome, ini, fim in fases:
@@ -17,33 +19,56 @@ def calcular_fase(data_menstrucao):
             return nome
     return "Desconhecida"
 
-def obter_treino_por_fase(data_menstrucao: str):
-    fase = calcular_fase(data_menstrucao)
+def obter_treino_por_fase(email: str, db: Session):
+    usuario = db.query(Usuario).filter(Usuario.email == email).first()
+    if not usuario or not usuario.data_menstruacao:
+        return {"erro": "Usuária sem data de menstruação cadastrada"}
 
-    treinos = {
-        "Menstruação": {
-            "treino": "Treino A",
-            "exercicios": ["Alongamento leve", "Respiração diafragmática", "Yoga suave"],
-            "video": "https://exemplo.com/video/treinoA"
-        },
-        "Folicular": {
-            "treino": "Treino B",
-            "exercicios": ["Agachamento", "Afundo alternado", "Prancha com apoio"],
-            "video": "https://exemplo.com/video/treinoB"
-        },
-        "Ovulatória": {
-            "treino": "Treino C",
-            "exercicios": ["Polichinelo", "Burpee", "Escalador"],
-            "video": "https://exemplo.com/video/treinoC"
-        },
-        "Lútea": {
-            "treino": "Treino D",
-            "exercicios": ["Caminhada", "Bicicleta leve", "Alongamento"],
-            "video": "https://exemplo.com/video/treinoD"
-        }
+    fase = calcular_fase(str(usuario.data_menstruacao))
+    sequencia_treinos = ["A", "B", "C", "D", "E"]
+
+    # Busca os treinos já feitos por fase
+    treinos_feitos = (
+        db.query(TreinoRealizado)
+        .filter(TreinoRealizado.usuario_id == usuario.id)
+        .filter(TreinoRealizado.fase == fase)
+        .order_by(TreinoRealizado.data.desc())
+        .all()
+    )
+
+    if not treinos_feitos:
+        proximo_treino = "A"
+    else:
+        ultimo = treinos_feitos[0].treino
+        idx = sequencia_treinos.index(ultimo)
+        proximo_treino = sequencia_treinos[(idx + 1) % len(sequencia_treinos)]
+
+    # Mapeia a fase para a tabela correspondente
+    tabela_por_fase = {
+        "Menstruação": "fase_1_menstruacao",
+        "Folicular": "fase_2_folicular",
+        "Ovulatória": "fase_3_ovulatoria",
+        "Lútea": "fase_4_tpm",
     }
+
+    nome_tabela = tabela_por_fase.get(fase)
+    if not nome_tabela:
+        return {"erro": f"Tabela não encontrada para a fase '{fase}'"}
+
+    # Monta a query com ILIKE
+    query = text(f"""
+        SELECT * FROM {nome_tabela}
+        WHERE tipo_treino ILIKE :tipo
+        ORDER BY exercicio
+    """)
+
+    resultados = db.execute(query, {"tipo": f"%{proximo_treino}%"}).fetchall()
+    exercicios = [dict(row._mapping) for row in resultados]
 
     return {
         "fase": fase,
-        **treinos.get(fase, {"treino": "N/A", "exercicios": [], "video": ""})
+        "tipo_treino": proximo_treino,
+        "exercicios": exercicios
     }
+
+

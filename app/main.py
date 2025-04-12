@@ -10,3 +10,4 @@ app.include_router(treino.router)
 app.include_router(auth.router)
 app.include_router(perfil.router)
 app.include_router(usuario.router)
+

@@ -1,0 +1,15 @@
+{
+    "fase_menstrual": {
+      "descricao": "Esta é a fase da menstruação. É um momento de recolhimento e reflexão. É normal sentir-se mais introspectiva e com menor energia. Priorize o descanso, rituais de autocuidado e escute seu corpo. Alongamentos, yoga e caminhadas leves são ótimos aliados nesse período."
+    },
+    "fase_folicular": {
+      "descricao": "Na fase folicular, sua energia começa a subir. Sua mente está mais clara, criativa e você tende a estar mais disposta. É um excelente momento para iniciar novos projetos e praticar atividades físicas intensas, como treinos de força e HIIT."
+    },
+    "fase_ovulatoria": {
+      "descricao": "Durante a ovulação, você alcança o pico de energia e sociabilidade. É uma fase expansiva, ideal para interações sociais, apresentações e atividades em grupo. Sua autoestima tende a estar elevada, aproveite para se desafiar em treinos como dança, esportes ou aeróbicos."
+    },
+    "fase_lutea": {
+      "descricao": "A fase lútea é um convite à introspecção e ao cuidado emocional. Seu corpo se prepara para o final do ciclo, e você pode sentir maior sensibilidade. Aposte em atividades restaurativas, como pilates e alongamentos, e organize suas ideias para concluir projetos pendentes."
+    }
+  }
+  

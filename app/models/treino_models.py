@@ -1,5 +1,6 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
+from typing import Literal
 
 class TreinoResponse(BaseModel):
     fase: str
@@ -14,3 +15,10 @@ class TreinoResponse(BaseModel):
     duracao: Optional[str]
     obs: Optional[str]
     link_video: Optional[str]
+
+
+
+class ConcluirTreinoRequest(BaseModel):
+    fase: Literal["Menstruação", "Folicular", "Ovulatória", "Lútea"]
+    tipo_treino: str
+    percentual: float  # de 0 a 100

@@ -12,17 +12,6 @@ import random
 
 router = APIRouter(tags=["Usuário"])
 
-@router.put("/perfil")
-def atualizar_perfil(dados: AtualizarPerfil, db: Session = Depends(get_db), user_id: int = 1):
-    user = db.query(Usuario).filter(Usuario.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuário não encontrado")
-
-    for key, value in dados.dict(exclude_none=True).items():
-        setattr(user, key, value)
-
-    db.commit()
-    return {"mensagem": "Perfil atualizado com sucesso"}
 
 @router.post("/redefinir-senha")
 def redefinir_senha(request: RedefinirSenhaRequest, db: Session = Depends(get_db)):
