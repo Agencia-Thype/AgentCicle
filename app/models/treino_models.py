@@ -19,6 +19,5 @@ class TreinoResponse(BaseModel):
 
 
 class ConcluirTreinoRequest(BaseModel):
-    fase: Literal["Menstruação", "Folicular", "Ovulatória", "Lútea"]
     tipo_treino: str
-    percentual: float  # de 0 a 100
+    percentual: float  

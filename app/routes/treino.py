@@ -68,17 +68,70 @@ def concluir_treino(
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuária não encontrada")
 
+    fase = calcular_fase(str(usuario.data_menstruacao))
     percentual = dados.percentual
 
-    # Verifica se já existe treino registrado hoje para esse tipo e fase
+    print("✅ Percentual recebido:", percentual)
+
     treino_existente = db.query(TreinoRealizado).filter_by(
         usuario_id=usuario.id,
         data=date.today(),
-        fase=dados.fase,
+        fase=fase,
         treino=dados.tipo_treino
     ).first()
 
+    def calcular_pontos(p):
+        if p == 0:
+            return 0
+        elif p < 25:
+            return 3
+        elif p < 50:
+            return 5
+        elif p < 75:
+            return 10
+        elif p < 100:
+            return 15
+        else:
+            return 20
+
     if treino_existente:
+        percentual_antigo = float(treino_existente.percentual_concluido or 0)
+        print(f"📝 Atualizando treino existente ({treino_existente.data}): antes={percentual_antigo}, novo={percentual}")
+        
+        if abs(percentual_antigo - float(percentual)) > 0.01:
+            pontos_antigos = treino_existente.pontos or 0
+            novos_pontos = calcular_pontos(percentual)
+
+            treino_existente.percentual_concluido = percentual
+            treino_existente.pontos = novos_pontos
+            usuario.pontos_totais = (usuario.pontos_totais or 0) - pontos_antigos + novos_pontos
+
+            db.commit()
+            db.refresh(treino_existente)
+
+            print("🎯 CONFIRMAÇÃO SALVO NO BANCO (ATUALIZADO):", treino_existente.percentual_concluido)
+
+            return {
+                "mensagem": f"Treino atualizado para {percentual}% de conclusão.",
+                "ja_salvo": True,
+                "percentual": percentual,
+                "pontos": novos_pontos
+            }
+        novos_pontos = calcular_pontos(percentual)
+        novo_treino = TreinoRealizado(
+        usuario_id=usuario.id,
+        data=date.today(),
+        fase=fase,
+        treino=dados.tipo_treino,
+        percentual_concluido=percentual,
+        pontos=novos_pontos
+        )
+        db.add(novo_treino)
+        usuario.pontos_totais = (usuario.pontos_totais or 0) + novos_pontos
+        db.commit()
+        db.refresh(novo_treino)
+        print("🎯 Novo treino persistido com:", novo_treino.percentual_concluido)
+
         return {
             "mensagem": f"Você já concluiu este treino hoje com {treino_existente.percentual_concluido}% e ganhou {treino_existente.pontos} ponto(s).",
             "ja_salvo": True,
@@ -86,41 +139,20 @@ def concluir_treino(
             "pontos": treino_existente.pontos
         }
 
-    # Calcula pontos com base no percentual (primeira vez salvando)
-    if percentual == 0:
-        pontos = 0
-    elif percentual < 25:
-        pontos = 3
-    elif percentual < 50:
-        pontos = 5
-    elif percentual < 75:
-        pontos = 10
-    elif percentual < 100:
-        pontos = 15
-    else:
-        pontos = 20
+FASES = [
+    ("Menstruação", 0, 5),
+    ("Folicular", 6, 12),
+    ("Ovulatória", 13, 16),
+    ("Lútea", 17, 28),
+]
 
-    novo_treino = TreinoRealizado(
-        usuario_id=usuario.id,
-        data=date.today(),
-        fase=dados.fase,
-        treino=dados.tipo_treino,
-        percentual_concluido=percentual,
-        pontos=pontos
-    )
-    db.add(novo_treino)
+def fase_do_dia(data_menstruacao: date, dia: date) -> str:
+    dias_ciclo = (dia - data_menstruacao).days % 28
+    for nome, ini, fim in FASES:
+        if ini <= dias_ciclo <= fim:
+            return nome
+    return "Desconhecida"
 
-    # Atualiza a pontuação total da usuária apenas no primeiro registro
-    usuario.pontos_totais = (usuario.pontos_totais or 0) + pontos
-
-    db.commit()
-
-    return {
-        "mensagem": f"Treino {dados.tipo_treino} salvo com {percentual}% de conclusão.",
-        "ja_salvo": False,
-        "percentual": percentual,
-        "pontos": pontos
-    }
 
 @router.get("/progresso-semanal")
 def progresso_semanal(
@@ -130,8 +162,8 @@ def progresso_semanal(
     email: str = Depends(verificar_token)
 ):
     usuario = db.query(Usuario).filter(Usuario.email == email).first()
-    if not usuario:
-        raise HTTPException(status_code=404, detail="Usuária não encontrada")
+    if not usuario or not usuario.data_menstruacao:
+        raise HTTPException(status_code=404, detail="Usuária não encontrada ou sem menstruação registrada")
 
     try:
         data_inicio = datetime.strptime(inicio, "%Y-%m-%d").date()
@@ -139,55 +171,42 @@ def progresso_semanal(
     except ValueError:
         raise HTTPException(status_code=400, detail="Formato de data inválido")
 
-    treinos = db.query(TreinoRealizado).filter(
+    dias_da_semana = (data_fim - data_inicio).days + 1
+    if dias_da_semana <= 0:
+        raise HTTPException(status_code=400, detail="Intervalo inválido")
+
+    # Buscar treinos realizados no período
+    treinos_realizados = db.query(TreinoRealizado).filter(
         TreinoRealizado.usuario_id == usuario.id,
         TreinoRealizado.data >= data_inicio,
         TreinoRealizado.data <= data_fim,
-        TreinoRealizado.percentual_concluido.isnot(None)
     ).all()
 
-    if not treinos:
+    treinos_por_data = {
+        (t.data.date() if hasattr(t.data, "date") else t.data): float(t.percentual_concluido or 0)
+        for t in treinos_realizados
+    }
+
+    for dia, valor in treinos_por_data.items():
+        print(f"🧾 Dia {dia} → {valor}% concluído")
+
+    soma = 0
+    dias_com_treino_esperado = 0
+
+    for i in range(dias_da_semana):
+        dia = data_inicio + timedelta(days=i)
+        fase = fase_do_dia(usuario.data_menstruacao, dia)
+
+        if fase in ["Menstruação", "Folicular", "Ovulatória", "Lútea"]:
+            dias_com_treino_esperado += 1
+            soma += treinos_por_data.get(dia, 0)  # se não tiver treino, soma 0
+
+    if dias_com_treino_esperado == 0:
         return {"media_percentual": 0}
 
-    media = sum(t.percentual_concluido for t in treinos) / len(treinos)
+    media = soma / dias_com_treino_esperado
+
+    print("📅 Treinos por data:", treinos_por_data)
+    print(f"✅ Soma: {soma} | Dias com treino esperado: {dias_com_treino_esperado} | Média: {media:.1f}%")
+
     return {"media_percentual": round(media, 1)}
-
-@router.get("/pontuacao")
-def obter_pontuacao_e_classe(
-    db: Session = Depends(get_db),
-    email: str = Depends(verificar_token)
-):
-    usuario = db.query(Usuario).filter(Usuario.email == email).first()
-    if not usuario:
-        raise HTTPException(status_code=404, detail="Usuária não encontrada")
-
-    hoje = date.today()
-    primeiro_dia_mes = hoje.replace(day=1)
-
-    pontos_mes = db.query(TreinoRealizado).filter(
-        TreinoRealizado.usuario_id == usuario.id,
-        TreinoRealizado.data >= primeiro_dia_mes,
-        TreinoRealizado.pontos.isnot(None)
-    ).with_entities(func.coalesce(func.sum(TreinoRealizado.pontos), 0)).scalar()
-
-    data_inicio = usuario.data_menstruacao or usuario.data_criacao or hoje
-    dias_de_uso = (hoje - data_inicio).days
-
-    if dias_de_uso <= 30:
-        classe = "Lua Nova"
-        dias_restantes = 30 - dias_de_uso
-    elif dias_de_uso <= 60:
-        classe = "Lua Crescente"
-        dias_restantes = 60 - dias_de_uso
-    elif dias_de_uso <= 90:
-        classe = "Lua Cheia"
-        dias_restantes = 90 - dias_de_uso
-    else:
-        classe = "Lua Minguante"
-        dias_restantes = 0
-
-    return {
-        "classe": classe,
-        "dias_restantes": max(dias_restantes, 0),
-        "pontos_mes": pontos_mes
-    }

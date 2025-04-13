@@ -47,7 +47,7 @@ class TreinoRealizado(Base):
     fase = Column(String)
     treino = Column(String)
     percentual_concluido = Column(Float)
-    pontos = Column(Integer)  # ✅ precisa estar aqui!
+    pontos = Column(Integer) 
 
     usuario = relationship("Usuario", back_populates="treinos")
 
