@@ -54,30 +54,28 @@ def registrar_nova_menstruacao(db: Session, email: str, data_inicio: date):
     if not usuario:
         raise Exception("Usuária não encontrada")
 
-    # ✅ VERIFICAR SE JÁ EXISTE REGISTRO NA MESMA DATA
+    # Verifica se já existe registro nesta data
     existente = db.query(DiarioCiclo).filter(
         DiarioCiclo.user_id == usuario.id,
         DiarioCiclo.data == data_inicio
     ).first()
 
     if existente:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Já existe um registro para {data_inicio.strftime('%d/%m/%Y')}."
+        existente.data_inicio = data_inicio
+    else:
+        novo_registro = DiarioCiclo(
+            user_id=usuario.id,
+            data=data_inicio,
+            data_inicio=data_inicio,
+            created_at=datetime.utcnow(),
+            fase="Menstruação"
         )
+        db.add(novo_registro)
 
-    # 1. Registrar no histórico
-    novo_registro = DiarioCiclo(
-        user_id=usuario.id,
-        data=data_inicio,
-        created_at=datetime.utcnow()
-    )
-    db.add(novo_registro)
-
-    # 2. Atualizar campo principal
+    # Atualiza a data principal do perfil
     usuario.data_menstruacao = data_inicio
 
-    # 3. Recalcular duração média do ciclo
+    # Recalcula duração média do ciclo com base no histórico
     historico = (
         db.query(DiarioCiclo)
         .filter(DiarioCiclo.user_id == usuario.id)
@@ -93,7 +91,7 @@ def registrar_nova_menstruacao(db: Session, email: str, data_inicio: date):
         nova_media = round(sum(duracoes) / len(duracoes))
         usuario.duracao_ciclo = nova_media
 
-    # 4. Calcular fase atual com base na nova menstruação
+    # Calcula fase atual
     fase = calcular_fase_do_ciclo(data_inicio, usuario.duracao_ciclo)
 
     db.commit()

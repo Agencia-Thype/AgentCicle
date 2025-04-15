@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.models.sqlalchemy_models import Usuario, TreinoRealizado
@@ -27,7 +27,6 @@ def obter_treino_por_fase(email: str, db: Session):
     fase = calcular_fase(str(usuario.data_menstruacao))
     sequencia_treinos = ["A", "B", "C", "D", "E"]
 
-    # Busca os treinos já feitos por fase
     treinos_feitos = (
         db.query(TreinoRealizado)
         .filter(TreinoRealizado.usuario_id == usuario.id)
@@ -36,14 +35,19 @@ def obter_treino_por_fase(email: str, db: Session):
         .all()
     )
 
-    if not treinos_feitos:
-        proximo_treino = "A"
-    else:
-        ultimo = treinos_feitos[0].treino
-        idx = sequencia_treinos.index(ultimo)
-        proximo_treino = sequencia_treinos[(idx + 1) % len(sequencia_treinos)]
+    hoje = date.today()
+    treino_hoje = next((t for t in treinos_feitos if t.data == hoje), None)
 
-    # Mapeia a fase para a tabela correspondente
+    if treino_hoje:
+        proximo_treino = treino_hoje.treino
+    else:
+        if not treinos_feitos:
+            proximo_treino = "A"
+        else:
+            ultimo = treinos_feitos[0].treino
+            idx = sequencia_treinos.index(ultimo)
+            proximo_treino = sequencia_treinos[(idx + 1) % len(sequencia_treinos)]
+
     tabela_por_fase = {
         "Menstruação": "fase_1_menstruacao",
         "Folicular": "fase_2_folicular",
@@ -55,7 +59,6 @@ def obter_treino_por_fase(email: str, db: Session):
     if not nome_tabela:
         return {"erro": f"Tabela não encontrada para a fase '{fase}'"}
 
-    # Monta a query com ILIKE
     query = text(f"""
         SELECT * FROM {nome_tabela}
         WHERE tipo_treino ILIKE :tipo
@@ -65,10 +68,17 @@ def obter_treino_por_fase(email: str, db: Session):
     resultados = db.execute(query, {"tipo": f"%{proximo_treino}%"}).fetchall()
     exercicios = [dict(row._mapping) for row in resultados]
 
+    # Remover duplicados pelo nome do exercício
+    exercicios_unicos = {}
+    for ex in exercicios:
+        nome = ex.get("exercicio")
+        if nome and nome not in exercicios_unicos:
+            exercicios_unicos[nome] = ex
+
+    exercicios = list(exercicios_unicos.values())
+
     return {
         "fase": fase,
         "tipo_treino": proximo_treino,
         "exercicios": exercicios
     }
-
-

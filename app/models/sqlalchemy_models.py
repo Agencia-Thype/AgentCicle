@@ -22,6 +22,7 @@ class Usuario(Base):
     tentativas_codigo = Column(Integer, default=0)
     validade_codigo = Column(DateTime)
     pontos_totais = Column(Integer, default=0)
+    
     treinos = relationship("TreinoRealizado", back_populates="usuario")
     registros_ciclo = relationship("DiarioCiclo", back_populates="usuario")
 
