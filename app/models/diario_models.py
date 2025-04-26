@@ -8,3 +8,4 @@ class SintomasRequest(BaseModel):
     observacao: Optional[str] = None
     fase: Optional[str] = None
     data: Optional[date] = None  
+    peso: Optional[float] = None 

@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app.models.sqlalchemy_models import Usuario, DiarioCiclo
 
+
 def calcular_fase_do_ciclo(data_menstruacao: str | date, duracao_ciclo: int = 28):
     """
     Calcula a fase atual do ciclo com base na data da última menstruação.

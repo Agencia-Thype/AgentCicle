@@ -1,44 +1,63 @@
 import os
 import traceback
-from openai import OpenAI
 from dotenv import load_dotenv
+from openai import OpenAI  # novo client
 
 load_dotenv()
 
-openai_api_key = os.getenv("OPENAI_API_KEY")
-client = OpenAI(api_key=openai_api_key)
+# Inicializa o client com a chave e organização
+client = OpenAI(
+    api_key="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",
+    organization=os.getenv("OPENAI_ORG_ID")
+)
+
+def formatar_historico_conversas(historico: list) -> str:
+    if not historico:
+        return "Ainda não houve conversas anteriores com essa usuária."
+    return "\n".join([
+        f"- Pergunta: {h.get('pergunta', '')}\n  Resposta: {h.get('resposta', '')}"
+        for h in historico[-3:]  # últimos 3
+    ])
 
 def gerar_resposta_ia(pergunta: str, contexto: dict) -> str:
-    """
-    Gera uma resposta empática com base no contexto da fase do ciclo,
-    desempenho de treinos e sentimentos anteriores.
-    """
-
     fase = contexto.get("fase_atual", "fase desconhecida")
     descricao = contexto.get("descricao", "")
     percentual_atual = contexto.get("percentual_atual", 0)
     percentual_anterior = contexto.get("percentual_anterior", 0)
-    sentimentos = ", ".join(contexto.get("sentimentos_anteriores", [])) or "nenhum registrado"
+    sentimentos_lista = contexto.get("sentimentos_anteriores", [])
+    sentimentos = ", ".join(sentimentos_lista) if sentimentos_lista else "nenhum registrado"
+    historico_formatado = formatar_historico_conversas(contexto.get("historico", []))
 
     prompt_contexto = f"""
 Fase atual: {fase}
 Descrição da fase: {descricao}
-Treinos concluídos nessa fase: {percentual_atual}%
+Treinos concluídos nessa fase (mês atual): {percentual_atual}%
 Treinos concluídos nessa fase no mês anterior: {percentual_anterior}%
-Sentimentos anteriores nessa fase: {sentimentos}
+Sentimentos anteriores registrados nessa fase: {sentimentos}
+
+Histórico recente de conversas com a usuária:
+{historico_formatado}
 """
 
     prompt = f"""
 Você é uma coach motivacional focada no bem-estar feminino, treinos e fases do ciclo menstrual.
 
-Use o contexto abaixo para responder a pergunta da usuária de forma acolhedora, clara, motivacional e prática.
+Use o contexto abaixo para responder à pergunta da usuária de forma acolhedora, clara, inspiradora e prática.
 
 {prompt_contexto}
+
+Regras importantes:
+- Se a usuária ainda não treinou (percentual atual = 0), motive com empatia e sugira atividades leves e acessíveis como alongamento, caminhada ou respiração consciente.
+- Se o percentual atual estiver maior que o anterior, elogie e destaque a evolução.
+- Se os percentuais forem iguais ou baixos, oriente com leveza e reforce o autocuidado.
+- Use linguagem amigável, como se estivesse incentivando uma amiga próxima.
+- Inclua um emoji relacionado à fase do ciclo (ex: 🌑 🌒 🌕 🌘) se possível.
+- A resposta deve ser curta, empática e com no máximo 5 linhas.
 
 Pergunta da usuária:
 {pergunta}
 
-Responda de forma humana e acolhedora, como se estivesse incentivando uma amiga. Dê sugestões que façam sentido para a fase do ciclo e o histórico dela.
+Responda como uma coach emocionalmente inteligente, com foco no bem-estar integral.
 """
 
     try:

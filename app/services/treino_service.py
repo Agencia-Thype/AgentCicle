@@ -1,7 +1,22 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.models.sqlalchemy_models import Usuario, TreinoRealizado
+
+def calcular_percentual_por_fase(db: Session, user_id: int, fase: str, data_base: date) -> float:
+    treinos = db.query(TreinoRealizado).filter(
+        TreinoRealizado.usuario_id == user_id,
+        TreinoRealizado.data >= data_base - timedelta(days=35),
+        TreinoRealizado.data <= data_base,
+        TreinoRealizado.fase == fase
+    ).all()
+
+    if not treinos:
+        return 0.0
+
+    return round(
+        sum(float(t.percentual_concluido or 0) for t in treinos) / len(treinos), 1
+    )
 
 def calcular_fase(data_menstruacao):
     fases = [
