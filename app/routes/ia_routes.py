@@ -10,20 +10,28 @@ from app.services.auth_service import verificar_token
 from app.models.sqlalchemy_models import Usuario, DiarioCiclo
 from app.services.ciclo_service import calcular_fase_do_ciclo
 from app.utils.constantes import MAPEAMENTO_FASES
+from app.utils.acesso import verificar_acesso
 
 from app.services.treino_service import calcular_percentual_por_fase
 
 router = APIRouter(prefix="/ia", tags=["IA"])
 
 @router.post("/conversar", response_model=RespostaIA)
+@verificar_acesso(recurso_premium=True, permite_trial=False)
 def conversar_ia(
     pergunta: str = Body(..., embed=True),
     db: Session = Depends(get_db),
     email: str = Depends(verificar_token)
 ):
     usuario = db.query(Usuario).filter(Usuario.email == email).first()
-    if not usuario or not usuario.data_menstruacao:
-        raise HTTPException(status_code=404, detail="Usuária não encontrada ou sem menstruação registrada")
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuária não encontrada")
+    
+    # Garantir que temos os dados mais atualizados
+    db.refresh(usuario)
+    
+    if not usuario.data_menstruacao:
+        raise HTTPException(status_code=404, detail="Usuária sem menstruação registrada")
 
     hoje = date.today()
     fase_info = calcular_fase_do_ciclo(str(usuario.data_menstruacao), usuario.duracao_ciclo)
@@ -77,14 +85,21 @@ def conversar_ia(
 
 
 @router.get("/mensagem-entrada", response_model=RespostaIA)
+@verificar_acesso(recurso_premium=True, permite_trial=False)
 def mensagem_entrada_ia(
     tipo: str = Query("boas_vindas", enum=["boas_vindas", "balao"]),
     db: Session = Depends(get_db),
     email: str = Depends(verificar_token)
 ):
     usuario = db.query(Usuario).filter(Usuario.email == email).first()
-    if not usuario or not usuario.data_menstruacao:
-        raise HTTPException(status_code=404, detail="Usuária não encontrada ou sem menstruação registrada")
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuária não encontrada")
+    
+    # Garantir que temos os dados mais atualizados
+    db.refresh(usuario)
+    
+    if not usuario.data_menstruacao:
+        raise HTTPException(status_code=404, detail="Usuária sem menstruação registrada")
 
     hoje = date.today()
     fase_info = calcular_fase_do_ciclo(str(usuario.data_menstruacao), usuario.duracao_ciclo)

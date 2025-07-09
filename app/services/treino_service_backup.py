@@ -2,7 +2,6 @@ from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.models.sqlalchemy_models import Usuario, TreinoRealizado
-from app.services.ciclo_service import calcular_fase_do_ciclo
 
 def calcular_percentual_por_fase(db: Session, user_id: int, fase: str, data_base: date) -> float:
     treinos = db.query(TreinoRealizado).filter(
@@ -19,20 +18,28 @@ def calcular_percentual_por_fase(db: Session, user_id: int, fase: str, data_base
         sum(float(t.percentual_concluido or 0) for t in treinos) / len(treinos), 1
     )
 
+def calcular_fase(data_menstruacao):
+    fases = [
+        ("Menstruação", 0, 5),
+        ("Folicular", 6, 12),
+        ("Ovulatória", 13, 16),
+        ("Lútea", 17, 28),
+    ]
+    hoje = datetime.now().date()
+    inicio = datetime.strptime(data_menstruacao, "%Y-%m-%d").date()
+    dias = (hoje - inicio).days % 28
+
+    for nome, ini, fim in fases:
+        if ini <= dias <= fim:
+            return nome
+    return "Desconhecida"
+
 def obter_treino_por_fase(email: str, db: Session):
     usuario = db.query(Usuario).filter(Usuario.email == email).first()
-    if not usuario:
-        return {"erro": "Usuária não encontrada"}
-    
-    if not usuario.data_menstruacao:
+    if not usuario or not usuario.data_menstruacao:
         return {"erro": "Usuária sem data de menstruação cadastrada"}
 
-    # Usar a mesma função que a IA usa para calcular a fase
-    # Nota: Sempre fazemos uma nova consulta à base para garantir que temos os dados mais recentes
-    db.refresh(usuario)  # Garante que temos os dados mais atualizados do usuário
-    
-    fase_info = calcular_fase_do_ciclo(str(usuario.data_menstruacao), usuario.duracao_ciclo or 28)
-    fase = fase_info["fase"]
+    fase = calcular_fase(str(usuario.data_menstruacao))
     sequencia_treinos = ["A", "B", "C", "D", "E"]
 
     treinos_feitos = (
@@ -51,8 +58,7 @@ def obter_treino_por_fase(email: str, db: Session):
     else:
         if not treinos_feitos:
             proximo_treino = "A"
-        else:
-            ultimo = treinos_feitos[0].treino
+        else:            ultimo = treinos_feitos[0].treino
             idx = sequencia_treinos.index(ultimo)
             proximo_treino = sequencia_treinos[(idx + 1) % len(sequencia_treinos)]
 
@@ -67,14 +73,12 @@ def obter_treino_por_fase(email: str, db: Session):
     if not nome_tabela:
         return {"erro": f"Tabela não encontrada para a fase '{fase}'"}
 
-    # CORREÇÃO: Usar comparação exata em vez de ILIKE com %
     query = text(f"""
         SELECT * FROM {nome_tabela}
         WHERE tipo_treino = :tipo
         ORDER BY exercicio
     """)
 
-    # CORREÇÃO: Passar apenas o valor exato, sem % no início e fim
     resultados = db.execute(query, {"tipo": proximo_treino}).fetchall()
     exercicios = [dict(row._mapping) for row in resultados]
 
@@ -90,27 +94,5 @@ def obter_treino_por_fase(email: str, db: Session):
     return {
         "fase": fase,
         "tipo_treino": proximo_treino,
-        "exercicios": exercicios,
-        "fase_info": fase_info  # Incluir informações completas da fase
+        "exercicios": exercicios
     }
-
-def usuario_tem_treino_concluido_hoje(db: Session, usuario_id: int) -> bool:
-    """
-    Verifica se a usuária já concluiu algum treino no dia atual.
-    Um treino é considerado concluído quando percentual_concluido > 0.
-    
-    Args:
-        db: Session do banco de dados
-        usuario_id: ID da usuária
-        
-    Returns:
-        bool: True se a usuária já concluiu algum treino hoje, False caso contrário
-    """
-    hoje = date.today()
-    treino_hoje = db.query(TreinoRealizado).filter(
-        TreinoRealizado.usuario_id == usuario_id,
-        TreinoRealizado.data == hoje,
-        TreinoRealizado.percentual_concluido > 0  # Verifica se realmente concluiu alguma parte do treino
-    ).first()
-    
-    return treino_hoje is not None

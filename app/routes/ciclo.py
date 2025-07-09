@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from app.db.database import get_db
 from app.services.auth_service import verificar_token
 from app.models.sqlalchemy_models import Usuario
 from app.models.sqlalchemy_models import Usuario, DiarioCiclo
 from app.schemas.ciclo_schema import RegistroMenstruacao
-from app.services.ciclo_service import registrar_nova_menstruacao
+from app.services.ciclo_service import calcular_fase_do_ciclo, registrar_nova_menstruacao
 from fastapi import Body
 
 router = APIRouter(tags=["Ciclo"])
@@ -36,28 +36,36 @@ def editar_data_menstruacao(
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuária não encontrada")
 
-    usuario.data_menstruacao = data_nova  # Atualiza no perfil
-    db.commit()
-
+    # Atualiza no perfil
+    usuario.data_menstruacao = data_nova
+    
+    # Verifica se já existe registro para esta data
     registro_existente = db.query(DiarioCiclo).filter(
         DiarioCiclo.user_id == usuario.id,
-        DiarioCiclo.data_inicio == data_nova
+        DiarioCiclo.data == data_nova
     ).first()
 
     if registro_existente:
-        registro_existente.data_inicio = data_nova
+        registro_existente.fase = "Menstruação"
     else:
         novo_registro = DiarioCiclo(
             user_id=usuario.id,
             data=data_nova,
-            data_inicio=data_nova,
-            fase="Menstruação"
+            fase="Menstruação",
+            created_at=datetime.now(datetime.timezone.utc)
         )
         db.add(novo_registro)
 
     db.commit()
 
-    return {"mensagem": "Registro de menstruação criado ou atualizado com sucesso"}
+    # Recalcular a fase atual
+    fase_atual = calcular_fase_do_ciclo(data_nova, usuario.duracao_ciclo)
+
+    return {
+        "mensagem": "Registro de menstruação atualizado com sucesso",
+        "data_registrada": data_nova,
+        "fase_atual": fase_atual
+    }
 
 
 @router.get("/fase-por-data")

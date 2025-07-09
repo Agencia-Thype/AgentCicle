@@ -1,14 +1,23 @@
 from datetime import datetime, date
-
+from typing import Union
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app.models.sqlalchemy_models import Usuario, DiarioCiclo
 
 
-def calcular_fase_do_ciclo(data_menstruacao: str | date, duracao_ciclo: int = 28):
+def calcular_fase_do_ciclo(data_menstruacao: Union[str, date], duracao_ciclo: int = 28):
+
     """
     Calcula a fase atual do ciclo com base na data da última menstruação.
     """
+    # Verificar se a data da menstruação está presente
+    if data_menstruacao is None:
+        return {
+            "fase": "Desconhecida",
+            "mensagem": "Data da menstruação não cadastrada",
+            "dias_desde_menstruacao": 0,
+        }
+        
     if duracao_ciclo < 21 or duracao_ciclo > 35:
         duracao_ciclo = 28
 
@@ -33,7 +42,8 @@ def calcular_fase_do_ciclo(data_menstruacao: str | date, duracao_ciclo: int = 28
     )
 
     dias_passados = (hoje - inicio).days % duracao_ciclo
-
+    
+    # Recuperar a fase com base nos dias passados
     for nome, inicio_dia, fim_dia, msg in fases:
         if inicio_dia <= dias_passados <= fim_dia:
             return {
@@ -62,12 +72,11 @@ def registrar_nova_menstruacao(db: Session, email: str, data_inicio: date):
     ).first()
 
     if existente:
-        existente.data_inicio = data_inicio
+        existente.fase = "Menstruação"  # Atualiza a fase
     else:
         novo_registro = DiarioCiclo(
             user_id=usuario.id,
-            data=data_inicio,
-            data_inicio=data_inicio,
+            data=data_inicio,  # Usar apenas data, sem data_inicio
             created_at=datetime.utcnow(),
             fase="Menstruação"
         )
@@ -91,6 +100,8 @@ def registrar_nova_menstruacao(db: Session, email: str, data_inicio: date):
         ]
         nova_media = round(sum(duracoes) / len(duracoes))
         usuario.duracao_ciclo = nova_media
+    elif not usuario.duracao_ciclo:  # Se for o primeiro registro, define duração padrão
+        usuario.duracao_ciclo = 28
 
     # Calcula fase atual
     fase = calcular_fase_do_ciclo(data_inicio, usuario.duracao_ciclo)

@@ -19,9 +19,17 @@ class Usuario(Base):
     peso_atual = Column(Numeric)
     objetivo = Column(Text)
     data_peso_atual = Column(Date)
+    ultima_atualizacao_menstruacao = Column(DateTime)  # Campo para rastrear quando a data da menstruação foi atualizada pela última vez
     tentativas_codigo = Column(Integer, default=0)
     validade_codigo = Column(DateTime)
     pontos_totais = Column(Integer, default=0)
+    
+    # Campos para controle de trial e assinatura
+    data_criacao_conta = Column(DateTime)
+    data_fim_trial = Column(DateTime)
+    assinatura_ativa = Column(Integer, default=0)  # Usando Integer em vez de Boolean para compatibilidade
+    data_inicio_assinatura = Column(DateTime, nullable=True)
+    data_fim_assinatura = Column(DateTime, nullable=True)
     
     treinos = relationship("TreinoRealizado", back_populates="usuario")
     registros_ciclo = relationship("DiarioCiclo", back_populates="usuario")

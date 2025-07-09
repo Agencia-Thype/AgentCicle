@@ -6,14 +6,17 @@ from datetime import date, datetime, timedelta
 from app.db.database import get_db
 from app.services.auth_service import verificar_token
 from app.models.sqlalchemy_models import Usuario, TreinoRealizado
-from app.services.treino_service import obter_treino_por_fase, calcular_fase
+from app.services.treino_service import obter_treino_por_fase
+from app.services.ciclo_service import calcular_fase_do_ciclo
 from app.models.treino_models import ConcluirTreinoRequest
 from sqlalchemy import func
+from app.utils.acesso import verificar_acesso
 
 router = APIRouter(prefix="/treino-dia", tags=["Treino"])
 
 @router.get("")
-def treino_do_dia(
+@verificar_acesso(recurso_premium=False, permite_trial=True)
+async def treino_do_dia(
     db: Session = Depends(get_db),
     email: str = Depends(verificar_token)
 ):
@@ -59,7 +62,8 @@ def treino_do_dia(
 #     return {"mensagem": f"Treino {tipo_treino} registrado com sucesso para a fase {fase}!"}
 
 @router.post("/concluir", status_code=200)
-def concluir_treino(
+@verificar_acesso(recurso_premium=False, permite_trial=True)
+async def concluir_treino(
     dados: ConcluirTreinoRequest,
     db: Session = Depends(get_db),
     email: str = Depends(verificar_token)
@@ -68,7 +72,21 @@ def concluir_treino(
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuária não encontrada")
 
-    fase = calcular_fase(str(usuario.data_menstruacao))
+    # Verificar status do usuário (assinatura/trial)
+    from app.services.assinatura_service import verificar_status_usuario
+    status_usuario = verificar_status_usuario(db, usuario.id)
+    pode_pontuar = status_usuario["podePontuar"]
+    
+    # Se não puder pontuar, mostramos apenas um aviso por enquanto
+    if not pode_pontuar:
+        print(f"⚠️ Usuário {email} tentou registrar pontos sem trial/assinatura ativa")
+        # Quando ativar os bloqueios, comentar a linha abaixo
+        pode_pontuar = True
+        # E descomentar esta linha:
+        # return {"erro": "Seu período de avaliação expirou. Assine para continuar registrando treinos e ganhando pontos."}
+
+    fase_info = calcular_fase_do_ciclo(str(usuario.data_menstruacao), usuario.duracao_ciclo or 28)
+    fase = fase_info["fase"]
     percentual = dados.percentual
 
     print("✅ Percentual recebido:", percentual)
@@ -177,7 +195,8 @@ def progresso_treino_hoje(
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuária não encontrada")
 
-    fase = calcular_fase(str(usuario.data_menstruacao))
+    fase_info = calcular_fase_do_ciclo(str(usuario.data_menstruacao), usuario.duracao_ciclo or 28)
+    fase = fase_info["fase"]
 
     treino = db.query(TreinoRealizado).filter_by(
         usuario_id=usuario.id,

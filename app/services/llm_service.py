@@ -7,7 +7,7 @@ load_dotenv()
 
 # Inicializa o client com a chave e organização
 client = OpenAI(
-    api_key="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",
+    api_key="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",
     organization=os.getenv("OPENAI_ORG_ID")
 )
 

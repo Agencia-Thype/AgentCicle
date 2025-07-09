@@ -4,10 +4,12 @@ from datetime import datetime
 from app.db.database import get_db
 from app.services.auth_service import verificar_token
 from app.models.sqlalchemy_models import Usuario, DiarioCiclo, TreinoRealizado
+from app.utils.acesso import verificar_acesso
 
 router = APIRouter(prefix="/relatorio", tags=["Relatórios"])
 
 @router.get("/mensal")
+@verificar_acesso(recurso_premium=True, permite_trial=False)
 def relatorio_mensal(
     mes: str = Query(..., regex="^\\d{4}-\\d{2}$"),  # Ex: 2025-04
     db: Session = Depends(get_db),

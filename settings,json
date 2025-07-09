@@ -5,5 +5,10 @@
     "**/site-packages/**"
   ],
   "python.analysis.typeCheckingMode": "off",
-  "python.terminal.activateEnvironment": true
+  "python.terminal.activateEnvironment": true,
+  "python.analysis.extraPaths": [
+    "./venv/Lib/site-packages"
+  ],
+  "python.linting.enabled": true,
+  "python.languageServer": "Pylance"
 }

@@ -21,16 +21,10 @@ def calcular_percentual_por_fase(db: Session, user_id: int, fase: str, data_base
 
 def obter_treino_por_fase(email: str, db: Session):
     usuario = db.query(Usuario).filter(Usuario.email == email).first()
-    if not usuario:
-        return {"erro": "Usuária não encontrada"}
-    
-    if not usuario.data_menstruacao:
+    if not usuario or not usuario.data_menstruacao:
         return {"erro": "Usuária sem data de menstruação cadastrada"}
 
     # Usar a mesma função que a IA usa para calcular a fase
-    # Nota: Sempre fazemos uma nova consulta à base para garantir que temos os dados mais recentes
-    db.refresh(usuario)  # Garante que temos os dados mais atualizados do usuário
-    
     fase_info = calcular_fase_do_ciclo(str(usuario.data_menstruacao), usuario.duracao_ciclo or 28)
     fase = fase_info["fase"]
     sequencia_treinos = ["A", "B", "C", "D", "E"]
@@ -93,24 +87,3 @@ def obter_treino_por_fase(email: str, db: Session):
         "exercicios": exercicios,
         "fase_info": fase_info  # Incluir informações completas da fase
     }
-
-def usuario_tem_treino_concluido_hoje(db: Session, usuario_id: int) -> bool:
-    """
-    Verifica se a usuária já concluiu algum treino no dia atual.
-    Um treino é considerado concluído quando percentual_concluido > 0.
-    
-    Args:
-        db: Session do banco de dados
-        usuario_id: ID da usuária
-        
-    Returns:
-        bool: True se a usuária já concluiu algum treino hoje, False caso contrário
-    """
-    hoje = date.today()
-    treino_hoje = db.query(TreinoRealizado).filter(
-        TreinoRealizado.usuario_id == usuario_id,
-        TreinoRealizado.data == hoje,
-        TreinoRealizado.percentual_concluido > 0  # Verifica se realmente concluiu alguma parte do treino
-    ).first()
-    
-    return treino_hoje is not None

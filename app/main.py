@@ -1,6 +1,10 @@
 from fastapi import FastAPI
 from app.routes import auth, ciclo, diario, fase_atual, ia_routes, perfil, pontuacao, relatorio, usuario
-from app.routes import treino
+from app.routes import treino, assinatura
+from dotenv import load_dotenv
+
+# Carregar variáveis de ambiente
+load_dotenv()
 
 app = FastAPI(title="API Ciclo Menstrual")
 
@@ -15,4 +19,5 @@ app.include_router(pontuacao.router)
 app.include_router(fase_atual.router)
 app.include_router(relatorio.router)
 app.include_router(ia_routes.router)
+app.include_router(assinatura.router)
 
