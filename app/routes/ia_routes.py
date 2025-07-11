@@ -139,7 +139,18 @@ def mensagem_entrada_ia(
         "sentimentos_anteriores": list(sentimentos)
     }
 
-    resposta = gerar_mensagem_entrada_com_ia(db, usuario.id, contexto, tipo)
-
+    try:
+        resposta = gerar_mensagem_entrada_com_ia(db, usuario.id, contexto, tipo)
+    except Exception as e:
+        import traceback
+        print(f"❌ ERRO ao gerar mensagem de entrada: {str(e)}")
+        traceback.print_exc()
+        
+        # Mensagens de fallback para cada tipo
+        fallback = {
+            "boas_vindas": f"Bem-vinda à sua fase {fase_atual}! Estou aqui para te apoiar nessa jornada 💜",
+            "balao": "Como posso te ajudar hoje? 🌸"
+        }
+        resposta = fallback.get(tipo, "Estou aqui para te ajudar! 💕")
 
     return {"fase_atual": fase_atual, "resposta": resposta}

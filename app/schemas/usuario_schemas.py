@@ -107,3 +107,27 @@ class RedefinirSenhaRequest(BaseModel):
             )
 
         return self
+
+
+class UsuarioBaseInfo(BaseModel):
+    id: int
+    nome: str
+    email: str
+
+
+class AssinaturaStatus(BaseModel):
+    trialAtivo: bool
+    assinaturaAtiva: bool
+    temAcesso: bool
+    diasRestantesTrial: int
+    mensagem: str
+    verificadoEm: str
+    proximaVerificacao: str
+    tempoValidoSegundos: int
+
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    usuario: UsuarioBaseInfo
+    assinatura: Optional[AssinaturaStatus] = None

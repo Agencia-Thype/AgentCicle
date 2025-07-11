@@ -45,3 +45,4 @@ Para verificar as regras de negócio implementadas:
 ## Documentação adicional
 
 - [Integração do Trial e Assinatura](./docs/integracao_trial_assinatura.md): Guia para integrar os componentes frontend com o backend
+- [Guia de Polling no Frontend](./docs/guia_polling_frontend.md): Boas práticas para implementar polling correto no frontend e evitar problemas de desempenho

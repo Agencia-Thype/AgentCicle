@@ -3,11 +3,21 @@ import traceback
 from dotenv import load_dotenv
 from openai import OpenAI  # novo client
 
+# Carrega variáveis de ambiente
 load_dotenv()
 
-# Inicializa o client com a chave e organização
+
+api_key = os.getenv("SECRET_KEY")
+if not api_key:
+    print("⚠️ AVISO: SECRET_KEY não encontrada no arquivo .env")
+    api_key = os.getenv("OPENAI_API_KEY", "")
+    
+if not api_key:
+    print("❌ ERRO: Nenhuma API key encontrada para OpenAI (SECRET_KEY ou OPENAI_API_KEY)")
+
+
 client = OpenAI(
-    api_key="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",
+    api_key=api_key,
     organization=os.getenv("OPENAI_ORG_ID")
 )
 
@@ -61,6 +71,11 @@ Responda como uma coach emocionalmente inteligente, com foco no bem-estar integr
 """
 
     try:
+        # Verifica se a API key está disponível
+        if not client.api_key or client.api_key.strip() == "":
+            print("❌ ERRO: API key da OpenAI não configurada")
+            return "Estou temporariamente indisponível. Por favor, tente novamente em alguns minutos 🌸"
+        
         response = client.chat.completions.create(
             model="gpt-4-turbo",
             messages=[
@@ -75,4 +90,11 @@ Responda como uma coach emocionalmente inteligente, com foco no bem-estar integr
     except Exception as e:
         print("❌ ERRO ao gerar resposta da IA:")
         traceback.print_exc()
-        return f"Erro ao gerar resposta da IA: {str(e)}"
+        
+        # Mensagens amigáveis para diferentes tipos de erro
+        if "api_key" in str(e).lower() or "apikey" in str(e).lower():
+            return "Estou em um momento de descanso. Volto logo para te ajudar! 💜"
+        elif "timeout" in str(e).lower() or "connect" in str(e).lower():
+            return "Nossa conexão está um pouco lenta agora. Que tal tentarmos novamente daqui a pouco? 🌸"
+        else:
+            return "Estou me ajustando para te dar a melhor experiência. Tente novamente em instantes! ✨"

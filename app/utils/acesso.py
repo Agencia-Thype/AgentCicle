@@ -1,7 +1,8 @@
 from functools import wraps
 from fastapi import HTTPException, Depends
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Callable, Any
+import inspect
 
 from app.db.database import get_db
 from app.services.auth_service import verificar_token
@@ -12,10 +13,11 @@ from app.models.sqlalchemy_models import Usuario
 def verificar_acesso(recurso_premium=False, permite_trial=True):
     """
     Decorator para verificar se o usuário tem acesso ao recurso.
+    IMPORTANTE: Este decorator só deve ser usado em rotas que já recebem email do verificar_token.
     
     Args:
-        recurso_premium: Se True, requer assinatura ativa (não basta trial)
-        permite_trial: Se False, mesmo usuários em trial não terão acesso
+        recurso_premium: Se True, requer assinatura ativa ou trial ativo
+        permite_trial: Se False, apenas assinantes têm acesso (trial não serve)
         
     Returns:
         Decorator que verifica acesso
@@ -23,59 +25,69 @@ def verificar_acesso(recurso_premium=False, permite_trial=True):
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            # Os argumentos podem vir tanto de args quanto de kwargs dependendo de como a função é chamada
+            # O email sempre vem do verificar_token como parâmetro
             db = None
             email = None
             
-            # Verificar se temos os argumentos nos kwargs
-            if 'db' in kwargs:
-                db = kwargs.get('db')
-            if 'email' in kwargs:
-                email = kwargs.get('email')
-                
-            # Se não encontramos nos kwargs, verificar nos args (verificando o tipo dos argumentos)
-            if db is None and args:
-                for arg in args:
-                    if isinstance(arg, Session):
-                        db = arg
-                        break
-                        
-            # Buscar email nos argumentos posicionais
-            if email is None and len(args) > 1:
-                # O email geralmente é o segundo argumento após o db
-                potential_email = args[1] if len(args) > 1 else None
-                if isinstance(potential_email, str) and '@' in potential_email:
-                    email = potential_email
+            # Buscar db e email nos argumentos
+            for key, value in kwargs.items():
+                if isinstance(value, Session):
+                    db = value
+                elif isinstance(value, str) and '@' in value:
+                    email = value
             
-            # Garantir que temos os valores necessários
+            # Se não encontrou nos kwargs, buscar nos args
             if not db or not email:
-                print("⚠️ Faltando argumentos necessários no verificar_acesso. db:", db, "email:", email)
-                # Vamos prosseguir mesmo sem verificação para não bloquear o fluxo
+                for arg in args:
+                    if isinstance(arg, Session) and not db:
+                        db = arg
+                    elif isinstance(arg, str) and '@' in arg and not email:
+                        email = arg
+            
+            # Se ainda não temos os dados necessários, deixa passar (não bloquear o sistema)
+            if not db or not email:
+                print("⚠️ verificar_acesso: argumentos insuficientes, permitindo acesso")
                 return await func(*args, **kwargs)
 
             # Buscar usuário
             usuario = db.query(Usuario).filter(Usuario.email == email).first()
             if not usuario:
-                # Por enquanto, não bloqueamos - apenas logamos
                 print(f"⚠️ Usuário não encontrado: {email}")
-                return await func(*args, **kwargs)
+                raise HTTPException(status_code=404, detail="Usuário não encontrado")
 
             # Verificar status do usuário
             status = verificar_status_usuario(db, usuario.id)
             
-            # IMPORTANTE: Agora estamos bloqueando o acesso efetivamente
-            if recurso_premium and not status["podeUsarPremium"]:
-                print(f"⚠️ Usuário {email} tentou acessar recurso premium sem assinatura")
-                raise HTTPException(status_code=403, detail="Acesso restrito. Assine o plano para continuar usando o app.")
-
-            if not permite_trial and not status["assinaturaAtiva"]:
-                print(f"⚠️ Usuário {email} tentou acessar recurso exclusivo para assinantes")
-                raise HTTPException(status_code=403, detail="Acesso restrito a assinantes.")
-
-            if not status["podeUsarRecursosBasicos"]:
-                print(f"⚠️ Usuário {email} tentou acessar recurso básico com trial expirado")
-                raise HTTPException(status_code=403, detail="Período de teste expirado. Assine o plano para continuar usando o app.")
+            # Lógica de bloqueio baseada no status
+            if recurso_premium:
+                # Para recursos premium, precisa ter trial ativo OU assinatura ativa
+                if not status["temAcesso"]:
+                    if status["diasRestantesTrial"] == 0 and not status["assinaturaAtiva"]:
+                        raise HTTPException(
+                            status_code=403, 
+                            detail="Período de teste expirado. Assine o plano premium para continuar usando este recurso."
+                        )
+                    else:
+                        raise HTTPException(
+                            status_code=403, 
+                            detail="Acesso restrito. Este recurso requer assinatura premium ou trial ativo."
+                        )
                 
-            return await func(*args, **kwargs)
+                # Se permite_trial=False, bloqueia até usuários em trial
+                if not permite_trial and not status["assinaturaAtiva"]:
+                    raise HTTPException(
+                        status_code=403, 
+                        detail="Este recurso é exclusivo para assinantes premium."
+                    )
+                
+            print(f"✅ Usuário {email} autorizado para recurso (premium={recurso_premium}, trial_permitido={permite_trial})")
+            
+            # Verifica se a função é assíncrona ou síncrona e chama apropriadamente
+            if inspect.iscoroutinefunction(func):
+                # Se for assíncrona, usa await
+                return await func(*args, **kwargs)
+            else:
+                # Se for síncrona, chama diretamente
+                return func(*args, **kwargs)
         return wrapper
     return decorator

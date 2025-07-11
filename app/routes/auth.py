@@ -13,6 +13,7 @@ from app.services.auth_service import (
     criar_token_jwt, hash_senha, verificar_senha,
     gerar_codigo_validacao, verificar_token
 )
+from app.services.assinatura_service import obter_status_login
 
 router = APIRouter(tags=["Autenticação"])
 
@@ -74,7 +75,7 @@ def validar_email(req: ValidarEmailRequest, db: Session = Depends(get_db)):
     return {"mensagem": "E-mail verificado com sucesso! Seu período de teste gratuito de 7 dias foi ativado."}
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login")
 def login(usuario: UsuarioLogin, db: Session = Depends(get_db)):
     print(f"🔑 Tentativa de login para email: {usuario.email}")
     try:
@@ -91,9 +92,23 @@ def login(usuario: UsuarioLogin, db: Session = Depends(get_db)):
             print(f"❌ E-mail não verificado: {usuario.email}")
             raise HTTPException(status_code=403, detail="E-mail não verificado")
 
+        # Gerar token JWT
         token = criar_token_jwt(user.email)
+        
+        # Obter status completo do usuário para o frontend armazenar
+        status_assinatura = obter_status_login(db, user.id)
+        
         print(f"✅ Login bem-sucedido para: {usuario.email}")
-        return {"access_token": token, "token_type": "bearer"}
+        return {
+            "access_token": token, 
+            "token_type": "bearer",
+            "usuario": {
+                "id": user.id,
+                "nome": user.nome,
+                "email": user.email
+            },
+            "assinatura": status_assinatura
+        }
     except HTTPException:
         # Repassar exceções HTTP normalmente
         raise

@@ -75,7 +75,9 @@ async def concluir_treino(
     # Verificar status do usuário (assinatura/trial)
     from app.services.assinatura_service import verificar_status_usuario
     status_usuario = verificar_status_usuario(db, usuario.id)
-    pode_pontuar = status_usuario["podePontuar"]
+    
+    # Usar o valor de temAcesso como fallback se podePontuar não existir
+    pode_pontuar = status_usuario.get("podePontuar", status_usuario.get("temAcesso", False))
     
     # Se não puder pontuar, mostramos apenas um aviso por enquanto
     if not pode_pontuar:
@@ -132,20 +134,58 @@ async def concluir_treino(
             db.refresh(treino_existente)
 
             print("🎯 CONFIRMAÇÃO SALVO NO BANCO (ATUALIZADO):", treino_existente.percentual_concluido)
+            
+            # Calcular o progresso semanal após atualizar o treino
+            hoje = date.today()
+            inicio_semana = hoje - timedelta(days=hoje.weekday())
+            fim_semana = inicio_semana + timedelta(days=6)
+            
+            # Verificar os treinos da semana para obter o progresso atualizado
+            treinos_semana = db.query(TreinoRealizado).filter(
+                TreinoRealizado.usuario_id == usuario.id,
+                TreinoRealizado.data >= inicio_semana,
+                TreinoRealizado.data <= fim_semana,
+            ).all()
+            
+            # Calcular o progresso da semana
+            progresso_semana = calcular_progresso_semana(treinos_semana, usuario.data_menstruacao, inicio_semana, fim_semana)
 
             return {
                 "mensagem": f"Treino atualizado para {percentual}% de conclusão.",
                 "ja_salvo": True,
                 "percentual": percentual,
-                "pontos": treino_existente.pontos
+                "pontos": treino_existente.pontos,
+                "pontos_totais": usuario.pontos_totais,
+                "progresso_semana": progresso_semana,
+                "redirecionar_para": "/home",  # Instrução para o frontend redirecionar para a home
+                "atualizar_pontuacao": True  # Instrução para o frontend atualizar a pontuação
             }
 
         # Se percentual for igual ou menor, não muda nada
+        # Mas ainda retornamos informações para o frontend atualizar a UI
+        hoje = date.today()
+        inicio_semana = hoje - timedelta(days=hoje.weekday())
+        fim_semana = inicio_semana + timedelta(days=6)
+        
+        # Verificar os treinos da semana para obter o progresso atualizado
+        treinos_semana = db.query(TreinoRealizado).filter(
+            TreinoRealizado.usuario_id == usuario.id,
+            TreinoRealizado.data >= inicio_semana,
+            TreinoRealizado.data <= fim_semana,
+        ).all()
+        
+        # Calcular o progresso da semana
+        progresso_semana = calcular_progresso_semana(treinos_semana, usuario.data_menstruacao, inicio_semana, fim_semana)
+        
         return {
             "mensagem": f"Você já concluiu este treino hoje com {percentual_antigo}%. Nenhuma pontuação nova aplicada.",
             "ja_salvo": True,
             "percentual": percentual_antigo,
-            "pontos": treino_existente.pontos
+            "pontos": treino_existente.pontos,
+            "pontos_totais": usuario.pontos_totais,
+            "progresso_semana": progresso_semana,
+            "redirecionar_para": "/home",  # Instrução para o frontend redirecionar para a home
+            "atualizar_pontuacao": False  # Não precisa atualizar a pontuação pois não mudou
         }
 
     # 🆕 Se não existir, cria normalmente
@@ -164,12 +204,77 @@ async def concluir_treino(
     db.refresh(novo_treino)
     print("🎯 Novo treino persistido com:", novo_treino.percentual_concluido)
 
+    # Calcular o progresso semanal após salvar o treino
+    hoje = date.today()
+    inicio_semana = hoje - timedelta(days=hoje.weekday())
+    fim_semana = inicio_semana + timedelta(days=6)
+    
+    # Verificar os treinos da semana para obter o progresso atualizado
+    treinos_semana = db.query(TreinoRealizado).filter(
+        TreinoRealizado.usuario_id == usuario.id,
+        TreinoRealizado.data >= inicio_semana,
+        TreinoRealizado.data <= fim_semana,
+    ).all()
+    
+    # Calcular o progresso da semana
+    progresso_semana = calcular_progresso_semana(treinos_semana, usuario.data_menstruacao, inicio_semana, fim_semana)
+    
+    # Retornar resposta enriquecida com informações para o frontend
     return {
         "mensagem": f"Treino salvo com {percentual}% e {novos_pontos} ponto(s) conquistados.",
         "ja_salvo": False,
         "percentual": percentual,
-        "pontos": novos_pontos
+        "pontos": novos_pontos,
+        "pontos_totais": usuario.pontos_totais,
+        "progresso_semana": progresso_semana,
+        "redirecionar_para": "/home",  # Instrução para o frontend redirecionar para a home
+        "atualizar_pontuacao": True  # Instrução para o frontend atualizar a pontuação
     }
+
+
+def calcular_progresso_semana(treinos, data_menstruacao, data_inicio, data_fim):
+    """
+    Calcula o progresso semanal baseado nos treinos realizados.
+    
+    Args:
+        treinos: Lista de treinos realizados
+        data_menstruacao: Data de menstruação do usuário
+        data_inicio: Data de início da semana
+        data_fim: Data de fim da semana
+        
+    Returns:
+        float: Porcentagem média de progresso na semana
+    """
+    treinos_por_data = {}
+    
+    for t in treinos:
+        if isinstance(t.data, datetime):
+            dia = t.data.date()
+        else:
+            dia = t.data
+
+        valor = float(t.percentual_concluido or 0)
+        if dia not in treinos_por_data or valor > treinos_por_data[dia]:
+            treinos_por_data[dia] = valor
+            
+    soma = 0
+    dias_com_treino_esperado = 0
+    
+    dias_da_semana = (data_fim - data_inicio).days + 1
+    for i in range(dias_da_semana):
+        dia = data_inicio + timedelta(days=i)
+        fase = fase_do_dia(data_menstruacao, dia)
+        
+        if fase in ["Menstruação", "Folicular", "Ovulatória", "Lútea"]:
+            progresso = treinos_por_data.get(dia, 0)
+            dias_com_treino_esperado += 1
+            soma += progresso
+            
+    if dias_com_treino_esperado == 0:
+        return 0
+        
+    media = soma / dias_com_treino_esperado
+    return round(media, 1)
 
 
 FASES = [

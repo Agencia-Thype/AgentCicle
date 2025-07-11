@@ -67,15 +67,18 @@ def obter_treino_por_fase(email: str, db: Session):
     if not nome_tabela:
         return {"erro": f"Tabela não encontrada para a fase '{fase}'"}
 
-    # CORREÇÃO: Usar comparação exata em vez de ILIKE com %
+    # Na tabela, os tipos de treinos estão como 'TREINO A - full body', etc.
+    # Precisamos ajustar a busca para usar o formato completo ou com LIKE
+    tipo_treino_ajustado = f"TREINO {proximo_treino}%"
+    
     query = text(f"""
         SELECT * FROM {nome_tabela}
-        WHERE tipo_treino = :tipo
+        WHERE tipo_treino LIKE :tipo
         ORDER BY exercicio
     """)
 
-    # CORREÇÃO: Passar apenas o valor exato, sem % no início e fim
-    resultados = db.execute(query, {"tipo": proximo_treino}).fetchall()
+    # Passamos o padrão para buscar com LIKE
+    resultados = db.execute(query, {"tipo": tipo_treino_ajustado}).fetchall()
     exercicios = [dict(row._mapping) for row in resultados]
 
     # Remover duplicados pelo nome do exercício
