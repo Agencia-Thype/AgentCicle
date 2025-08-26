@@ -7,13 +7,11 @@ from openai import OpenAI  # novo client
 load_dotenv()
 
 
-api_key = os.getenv("SECRET_KEY")
+
+# Use apenas OPENAI_API_KEY para OpenAI
+api_key = os.getenv("OPENAI_API_KEY", "")
 if not api_key:
-    print("⚠️ AVISO: SECRET_KEY não encontrada no arquivo .env")
-    api_key = os.getenv("OPENAI_API_KEY", "")
-    
-if not api_key:
-    print("❌ ERRO: Nenhuma API key encontrada para OpenAI (SECRET_KEY ou OPENAI_API_KEY)")
+    print("❌ ERRO: OPENAI_API_KEY não encontrada no arquivo .env")
 
 
 client = OpenAI(

@@ -33,6 +33,8 @@ def calcular_fase_do_ciclo(data_menstruacao: Union[str, date], duracao_ciclo: in
         ("Ovulatória", *fase_ovulatoria, "Fase expansiva 🌕"),
         ("Lútea", *fase_lutea, "Fase criativa 🌘"),
     ]
+    
+    print(f"DEBUG: Intervalos de dias para fases: Menstruação={fase_menstruacao}, Folicular={fase_folicular}, Ovulatória={fase_ovulatoria}, Lútea={fase_lutea}")
 
     hoje = datetime.now().date()
     inicio = (

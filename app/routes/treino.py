@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Dict, List
 from datetime import date, datetime, timedelta
 
 from app.db.database import get_db
@@ -90,9 +90,18 @@ async def concluir_treino(
     fase_info = calcular_fase_do_ciclo(str(usuario.data_menstruacao), usuario.duracao_ciclo or 28)
     fase = fase_info["fase"]
     percentual = dados.percentual
+    
+    # Garantir que o percentual está entre 0 e 100
+    if percentual < 0:
+        percentual = 0
+    elif percentual > 100:
+        percentual = 100
+        
+    print(f"✅ Percentual recebido e validado: {percentual}% (usuário: {usuario.email}, fase: {fase}, treino: {dados.tipo_treino})")
 
-    print("✅ Percentual recebido:", percentual)
-
+    # Iniciar transação explícita para garantir atomicidade
+    db.begin(subtransactions=True)
+    
     treino_existente = db.query(TreinoRealizado).filter_by(
         usuario_id=usuario.id,
         data=date.today(),
@@ -116,24 +125,40 @@ async def concluir_treino(
 
     if treino_existente:
         percentual_antigo = float(treino_existente.percentual_concluido or 0)
-        print(f"📝 Atualizando treino existente ({treino_existente.data}): antes={percentual_antigo}, novo={percentual}")
+        print(f"📝 Treino existente encontrado (id={treino_existente.id}, data={treino_existente.data}): percentual_atual={percentual_antigo}%, novo_percentual={percentual}%")
+        
+        # Verificar se o percentual é diferente, não apenas maior
+        if percentual != percentual_antigo:
+            # Se o percentual for maior, atualizamos os pontos
+            if percentual > percentual_antigo:
+                pontos_antigos = treino_existente.pontos or 0
+                novos_pontos = calcular_pontos(percentual)
+                
+                print(f"🔄 Percentual aumentou: {percentual_antigo}% → {percentual}% | Pontos: {pontos_antigos} → {novos_pontos}")
 
-        if percentual > percentual_antigo:
-            pontos_antigos = treino_existente.pontos or 0
-            novos_pontos = calcular_pontos(percentual)
-
-            if novos_pontos > pontos_antigos:
-                # Ganha apenas a diferença
-                ganho_real = novos_pontos - pontos_antigos
-                usuario.pontos_totais = (usuario.pontos_totais or 0) + ganho_real
-                treino_existente.pontos = novos_pontos
-
+                if novos_pontos > pontos_antigos:
+                    # Ganha apenas a diferença
+                    ganho_real = novos_pontos - pontos_antigos
+                    usuario.pontos_totais = (usuario.pontos_totais or 0) + ganho_real
+                    treino_existente.pontos = novos_pontos
+                    print(f"💰 Ganho real de pontos: +{ganho_real} | Total do usuário: {usuario.pontos_totais}")
+            else:
+                # Se for menor, apenas atualizamos o percentual sem alterar os pontos
+                print(f"⚠️ Percentual diminuiu: {percentual_antigo}% → {percentual}% | Pontos mantidos: {treino_existente.pontos}")
+            
+            # Atualizamos o percentual em ambos os casos
             treino_existente.percentual_concluido = percentual
-
-            db.commit()
-            db.refresh(treino_existente)
-
-            print("🎯 CONFIRMAÇÃO SALVO NO BANCO (ATUALIZADO):", treino_existente.percentual_concluido)
+            
+            try:
+                db.commit()
+                db.refresh(treino_existente)
+                print(f"✅ TREINO ATUALIZADO NO BANCO: ID={treino_existente.id}, percentual={treino_existente.percentual_concluido}%, pontos={treino_existente.pontos}")
+            except Exception as e:
+                db.rollback()
+                print(f"❌ ERRO AO ATUALIZAR TREINO: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Erro ao salvar treino: {str(e)}")
+        else:
+            print(f"ℹ️ Percentual igual ao já registrado: {percentual}% | Nenhuma alteração necessária")
             
             # Calcular o progresso semanal após atualizar o treino
             hoje = date.today()
@@ -188,21 +213,31 @@ async def concluir_treino(
             "atualizar_pontuacao": False  # Não precisa atualizar a pontuação pois não mudou
         }
 
-    # 🆕 Se não existir, cria normalmente
-    novos_pontos = calcular_pontos(percentual)
-    novo_treino = TreinoRealizado(
-        usuario_id=usuario.id,
-        data=date.today(),
-        fase=fase,
-        treino=dados.tipo_treino,
-        percentual_concluido=percentual,
-        pontos=novos_pontos
-    )
-    db.add(novo_treino)
-    usuario.pontos_totais = (usuario.pontos_totais or 0) + novos_pontos
-    db.commit()
-    db.refresh(novo_treino)
-    print("🎯 Novo treino persistido com:", novo_treino.percentual_concluido)
+    # 🆕 Se não existir, cria um novo registro
+    try:
+        novos_pontos = calcular_pontos(percentual)
+        print(f"🆕 Criando novo registro de treino: tipo={dados.tipo_treino}, fase={fase}, percentual={percentual}%, pontos={novos_pontos}")
+        
+        novo_treino = TreinoRealizado(
+            usuario_id=usuario.id,
+            data=date.today(),
+            fase=fase,
+            treino=dados.tipo_treino,
+            percentual_concluido=percentual,
+            pontos=novos_pontos
+        )
+        
+        db.add(novo_treino)
+        usuario.pontos_totais = (usuario.pontos_totais or 0) + novos_pontos
+        
+        db.commit()
+        db.refresh(novo_treino)
+        
+        print(f"✅ Novo treino criado com sucesso: ID={novo_treino.id}, percentual={novo_treino.percentual_concluido}%, pontos={novo_treino.pontos}")
+    except Exception as e:
+        db.rollback()
+        print(f"❌ ERRO AO CRIAR NOVO TREINO: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro ao salvar treino: {str(e)}")
 
     # Calcular o progresso semanal após salvar o treino
     hoje = date.today()
@@ -302,21 +337,40 @@ def progresso_treino_hoje(
 
     fase_info = calcular_fase_do_ciclo(str(usuario.data_menstruacao), usuario.duracao_ciclo or 28)
     fase = fase_info["fase"]
-
-    treino = db.query(TreinoRealizado).filter_by(
-        usuario_id=usuario.id,
-        data=date.today(),
-        fase=fase
-    ).order_by(TreinoRealizado.id.desc()).first()
-
-    if not treino:
+    
+    # Buscar todos os treinos do dia atual para esta fase
+    hoje = date.today()
+    treinos_hoje = db.query(TreinoRealizado).filter(
+        TreinoRealizado.usuario_id == usuario.id,
+        TreinoRealizado.data == hoje,
+        TreinoRealizado.fase == fase
+    ).order_by(TreinoRealizado.id.desc()).all()
+    
+    # Log para verificação e diagnóstico
+    print(f"🔍 Treinos registrados hoje ({hoje}) para usuário {usuario.id} na fase {fase}: {len(treinos_hoje)}")
+    
+    if not treinos_hoje:
+        print("ℹ️ Nenhum treino registrado hoje")
         return {"percentual": 0, "ja_salvo": False}
-
+    
+    # Pegar o treino com maior percentual (mais relevante)
+    treino = max(treinos_hoje, key=lambda t: float(t.percentual_concluido or 0))
+    
+    print(f"✅ Treino encontrado: ID={treino.id}, tipo={treino.treino}, percentual={treino.percentual_concluido}%, pontos={treino.pontos}")
+    
+    # Se houver múltiplos treinos no mesmo dia, registramos isso para diagnóstico
+    if len(treinos_hoje) > 1:
+        print(f"⚠️ Múltiplos treinos encontrados para hoje ({len(treinos_hoje)}): {[t.id for t in treinos_hoje]}")
+        tipos_treino = set(t.treino for t in treinos_hoje)
+        print(f"  - Tipos de treino registrados: {tipos_treino}")
+    
     return {
         "percentual": float(treino.percentual_concluido or 0),
         "ja_salvo": True,
         "tipo_treino": treino.treino,
-        "pontos": treino.pontos or 0
+        "pontos": treino.pontos or 0,
+        "id": treino.id,  # Adicionando ID para facilitar diagnóstico no frontend
+        "total_registros_hoje": len(treinos_hoje)  # Informação adicional para diagnóstico
     }
 
 
@@ -387,3 +441,102 @@ def progresso_semanal(
     print(f"✅ Soma: {soma} | Dias com treino esperado: {dias_com_treino_esperado} | Média: {media:.1f}%")
 
     return {"media_percentual": round(media, 1)}
+    
+    
+@router.get("/diagnostico")
+@verificar_acesso(recurso_premium=False, permite_trial=True)
+def diagnostico_treinos(
+    data_inicio: Optional[str] = Query(None, description="Data inicial no formato YYYY-MM-DD (opcional)"),
+    data_fim: Optional[str] = Query(None, description="Data final no formato YYYY-MM-DD (opcional)"),
+    db: Session = Depends(get_db),
+    email: str = Depends(verificar_token)
+):
+    """
+    Endpoint para diagnóstico dos treinos registrados.
+    Retorna informações detalhadas sobre os treinos para ajudar na identificação de problemas.
+    """
+    usuario = db.query(Usuario).filter(Usuario.email == email).first()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuária não encontrada")
+    
+    # Se não informar datas, usa últimos 30 dias
+    hoje = date.today()
+    try:
+        if data_inicio:
+            inicio = datetime.strptime(data_inicio, "%Y-%m-%d").date()
+        else:
+            inicio = hoje - timedelta(days=30)
+            
+        if data_fim:
+            fim = datetime.strptime(data_fim, "%Y-%m-%d").date()
+        else:
+            fim = hoje
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Formato de data inválido. Use YYYY-MM-DD.")
+        
+    # Buscar todos os treinos no período
+    treinos = db.query(TreinoRealizado).filter(
+        TreinoRealizado.usuario_id == usuario.id,
+        TreinoRealizado.data >= inicio,
+        TreinoRealizado.data <= fim
+    ).order_by(TreinoRealizado.data.desc(), TreinoRealizado.id.desc()).all()
+    
+    # Organizar treinos por data
+    treinos_por_data = {}
+    for t in treinos:
+        data_key = t.data.isoformat() if isinstance(t.data, date) else str(t.data)
+        if data_key not in treinos_por_data:
+            treinos_por_data[data_key] = []
+            
+        treinos_por_data[data_key].append({
+            "id": t.id,
+            "fase": t.fase,
+            "tipo": t.treino,
+            "percentual": float(t.percentual_concluido or 0),
+            "pontos": t.pontos or 0
+        })
+    
+    # Informações de resumo
+    resumo = {
+        "total_treinos": len(treinos),
+        "dias_com_treino": len(treinos_por_data),
+        "media_percentual": round(sum(float(t.percentual_concluido or 0) for t in treinos) / len(treinos), 1) if treinos else 0,
+        "pontos_totais": usuario.pontos_totais,
+        "dias_no_periodo": (fim - inicio).days + 1
+    }
+    
+    # Análise de duplicidades e possíveis problemas
+    dias_com_multiplos_treinos = {
+        data: treinos for data, treinos in treinos_por_data.items() 
+        if len(treinos) > 1
+    }
+    
+    problemas = []
+    
+    # Verificar dias com múltiplos treinos do mesmo tipo
+    for data, treinos_dia in dias_com_multiplos_treinos.items():
+        tipos = {}
+        for t in treinos_dia:
+            if t["tipo"] not in tipos:
+                tipos[t["tipo"]] = []
+            tipos[t["tipo"]].append(t)
+                
+        for tipo, treinos_tipo in tipos.items():
+            if len(treinos_tipo) > 1:
+                problemas.append({
+                    "tipo": "duplicidade_mesmo_tipo",
+                    "data": data,
+                    "tipo_treino": tipo,
+                    "registros": treinos_tipo
+                })
+    
+    return {
+        "periodo": {
+            "inicio": inicio.isoformat(),
+            "fim": fim.isoformat()
+        },
+        "resumo": resumo,
+        "treinos_por_data": treinos_por_data,
+        "dias_com_multiplos_treinos": len(dias_com_multiplos_treinos),
+        "problemas_detectados": problemas
+    }

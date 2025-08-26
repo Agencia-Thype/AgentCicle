@@ -33,6 +33,7 @@ def obter_treino_por_fase(email: str, db: Session):
     
     fase_info = calcular_fase_do_ciclo(str(usuario.data_menstruacao), usuario.duracao_ciclo or 28)
     fase = fase_info["fase"]
+    print(f"DEBUG: Fase calculada: '{fase}'")
     sequencia_treinos = ["A", "B", "C", "D", "E"]
 
     treinos_feitos = (
@@ -61,25 +62,47 @@ def obter_treino_por_fase(email: str, db: Session):
         "Folicular": "fase_2_folicular",
         "Ovulatória": "fase_3_ovulatoria",
         "Lútea": "fase_4_tpm",
+        # Adicionando versões sem acento para garantir compatibilidade
+        "Menstruacao": "fase_1_menstruacao",
+        "Ovulatoria": "fase_3_ovulatoria",
+        "Lutea": "fase_4_tpm",
     }
     
     nome_tabela = tabela_por_fase.get(fase)
+    print(f"DEBUG: Fase: '{fase}', Tabela mapeada: '{nome_tabela}'")
     if not nome_tabela:
         return {"erro": f"Tabela não encontrada para a fase '{fase}'"}
 
-    # Na tabela, os tipos de treinos estão como 'TREINO A - full body', etc.
-    # Precisamos ajustar a busca para usar o formato completo ou com LIKE
-    tipo_treino_ajustado = f"TREINO {proximo_treino}%"
-    
+    # Consulta flexível: buscar por tipo_treino usando ILIKE e busca parcial
     query = text(f"""
         SELECT * FROM {nome_tabela}
-        WHERE tipo_treino LIKE :tipo
+        WHERE tipo_treino ILIKE :tipo
         ORDER BY exercicio
     """)
-
-    # Passamos o padrão para buscar com LIKE
-    resultados = db.execute(query, {"tipo": tipo_treino_ajustado}).fetchall()
-    exercicios = [dict(row._mapping) for row in resultados]
+    try:
+        resultados = db.execute(query, {"tipo": f"%{proximo_treino}%"}).fetchall()
+        print(f"DEBUG: Número de resultados obtidos: {len(resultados)}")
+        if resultados:
+            primeiro_resultado = dict(resultados[0]._mapping)
+            print(f"DEBUG: Exemplo de resultado - Colunas disponíveis: {list(primeiro_resultado.keys())}")
+            print(f"DEBUG: Exemplo de resultado - Valores: {primeiro_resultado}")
+    except Exception as e:
+        print(f"ERRO na consulta SQL: {str(e)}")
+        return {"erro": f"Erro ao consultar treinos: {str(e)}"}
+    def limpar_unicode(texto):
+        import unicodedata
+        if isinstance(texto, str):
+            try:
+                return unicodedata.normalize("NFKC", texto)
+            except Exception:
+                return texto
+        return texto
+    exercicios = []
+    for row in resultados:
+        linha = {}
+        for chave, valor in row._mapping.items():
+            linha[chave] = limpar_unicode(valor)
+        exercicios.append(linha)
 
     # Remover duplicados pelo nome do exercício
     exercicios_unicos = {}

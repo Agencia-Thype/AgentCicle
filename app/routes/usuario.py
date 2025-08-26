@@ -17,6 +17,26 @@ router = APIRouter(tags=["Usuário"])
 def redefinir_senha(request: RedefinirSenhaRequest, db: Session = Depends(get_db)):
     return processar_redefinicao_senha(request, db)
 
+@router.get("/listar-usuarios")
+def listar_usuarios(db: Session = Depends(get_db)):
+    usuarios = db.query(Usuario).all()
+    return [
+        {
+            "id": usuario.id,
+            "email": usuario.email,
+            "nome": getattr(usuario, "nome", None)
+        }
+        for usuario in usuarios
+    ]
+
+@router.delete("/excluir-usuario/{usuario_id}")
+def excluir_usuario(usuario_id: int, db: Session = Depends(get_db)):
+    usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    db.delete(usuario)
+    db.commit()
+    return {"mensagem": f"Usuário {usuario_id} excluído com sucesso."}
 
 @router.post("/enviar-codigo")
 async def enviar_codigo(email: dict, db: Session = Depends(get_db)):
