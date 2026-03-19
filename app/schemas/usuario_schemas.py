@@ -8,25 +8,8 @@ from pydantic import BaseModel, EmailStr, Field, model_validator
 class UsuarioRegister(BaseModel):
     nome: str = Field(min_length=2, max_length=100)
     email: EmailStr
-    senha: str = Field(min_length=6)
-    confirmacao_senha: str = Field(min_length=6)
-
-    @model_validator(mode="after")
-    def validar_senha(self) -> "UsuarioRegister":
-        self.senha = self.senha.strip()
-        self.confirmacao_senha = self.confirmacao_senha.strip()
-
-        if self.senha != self.confirmacao_senha:
-            raise ValueError("As senhas não conferem")
-        
-        regex = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{6,}$'
-        if not re.match(regex, self.senha):
-            raise ValueError(
-                "A senha deve conter no mínimo 6 caracteres, "
-                "uma letra maiúscula, uma minúscula, um número e um caractere especial."
-            )
-        
-        return self
+    senha: str = Field(min_length=6, max_length=50)
+    confirmacao_senha: str = Field(min_length=6, max_length=50)
 
 
 class UsuarioLogin(BaseModel):
@@ -91,22 +74,8 @@ class EnviarCodigoRequest(BaseModel):
 class RedefinirSenhaRequest(BaseModel):
     email: EmailStr
     codigo: str
-    nova_senha: str = Field(min_length=6, max_length=32)
+    nova_senha: str = Field(min_length=6, max_length=50)
     confirmacao_senha: str
-
-    @model_validator(mode="after")
-    def validar_senhas(self) -> "RedefinirSenhaRequest":
-        if self.nova_senha != self.confirmacao_senha:
-            raise ValueError("As senhas não coincidem.")
-
-        regex = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).+$'
-        if not re.match(regex, self.nova_senha):
-            raise ValueError(
-                "A senha deve conter ao menos: uma letra minúscula, "
-                "uma letra maiúscula, um número e um caractere especial."
-            )
-
-        return self
 
 
 class UsuarioBaseInfo(BaseModel):

@@ -1,5 +1,4 @@
-from sqlalchemy import Column, Integer, Text, ForeignKey, DateTime, Boolean, String
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Column, Integer, Text, ForeignKey, DateTime, Boolean, String, JSON
 from datetime import datetime
 from app.db.database import Base
 from sqlalchemy.orm import relationship
@@ -13,7 +12,7 @@ class ConversaIA(Base):
 
     pergunta = Column(Text, nullable=False)
     resposta = Column(Text, nullable=False)
-    contexto = Column(JSONB)  # dados do ciclo, percentual, sentimentos, etc
+    contexto = Column(JSON)  # dados do ciclo, percentual, sentimentos, etc
 
     fase = Column(String)  # Ex: Lútea
     tema = Column(String)  # Ex: "fome", "motivação", "cansaço", etc

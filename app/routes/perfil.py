@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import date, datetime, timedelta
-from app.schemas.usuario_schemas import AtualizarPerfil, PerfilUsuario
+from app.schemas.usuario_schemas import AtualizarPerfil, PerfilUsuario, AtualizarPerfilRequest
 from app.services.auth_service import verificar_token
 from app.db.database import get_db
 from app.models.sqlalchemy_models import Usuario, HistoricoPeso
@@ -68,7 +68,7 @@ def get_perfil(
 @router.put("/perfil")
 @verificar_acesso(recurso_premium=False, permite_trial=True)
 async def atualizar_perfil(
-    perfil: PerfilUsuario,
+    perfil: AtualizarPerfilRequest,
     db: Session = Depends(get_db),
     email: str = Depends(verificar_token)
 ):

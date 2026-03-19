@@ -16,7 +16,7 @@ connect_args = {
 
 try:
     engine = create_engine(
-        DATABASE_URL, 
+        DATABASE_URL,
         echo=True,  # echo=True para mostrar queries no terminal
         pool_pre_ping=True,  # Verificar conexão antes de usar
         pool_recycle=1800,   # Reciclar conexões a cada 30 minutos
@@ -24,15 +24,15 @@ try:
         max_overflow=10,     # Máximo de conexões extras além do pool_size
         connect_args=connect_args
     )
-    print("✅ Conexão com o banco criada com sucesso.")
+    print("Conexao com o banco criada com sucesso.")
     SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 except Exception as e:
-    print("❌ Erro ao conectar com o banco:", e)
+    print("Erro ao conectar com o banco:", e)
     # Criar um engine SQLite como fallback para evitar erros de importação
     fallback_url = "sqlite:///./test.db"
     engine = create_engine(fallback_url)
     SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
-    print("⚠️ Usando SQLite como fallback")
+    print("Usando SQLite como fallback")
 
 Base = declarative_base()
 

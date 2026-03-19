@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, Request
+from fastapi import APIRouter, Depends, HTTPException, Response, Request, Body
 from sqlalchemy.orm import Session
 from datetime import date, datetime, timedelta
 import time
@@ -103,19 +103,23 @@ def get_status_assinatura(
 
 @router.post("/ativar")
 def ativar_plano(
-    duracao_meses: int = 1,
+    duracao_meses: int = Body(1, embed=True),
     db: Session = Depends(get_db),
     email: str = Depends(verificar_token)
 ):
     """
     Endpoint para ativar a assinatura (simulação, sem integração com pagamentos reais).
     """
+    # Validar duração
+    if duracao_meses <= 0:
+        raise HTTPException(status_code=400, detail="Duração deve ser maior que 0")
+
     usuario = db.query(Usuario).filter(Usuario.email == email).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
-    
+
     resultado = ativar_assinatura(db, usuario.id, duracao_meses)
-    
+
     return {
         "mensagem": f"Assinatura ativada com sucesso por {duracao_meses} meses!",
         "status": resultado

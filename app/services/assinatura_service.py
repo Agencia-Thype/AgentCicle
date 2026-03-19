@@ -76,12 +76,16 @@ def verificar_status_usuario(db: Session, usuario_id: int) -> dict:
     
     # Usuário tem acesso se trial está ativo OU assinatura está ativa
     tem_acesso = trial_ativo or assinatura_ativa
-    
+
+    # Usuário pode usar recursos básicos se tiver qualquer tipo de acesso
+    pode_usar_recursos_basicos = tem_acesso
+
     status = {
         "trialAtivo": trial_ativo,
         "assinaturaAtiva": assinatura_ativa,
         "temAcesso": tem_acesso,
         "podePontuar": tem_acesso,  # Usuário pode pontuar se tiver acesso ativo
+        "podeUsarRecursosBasicos": pode_usar_recursos_basicos,  # Pode usar recursos básicos do app
         "diasRestantesTrial": dias_restantes_trial,
         "dataFimTrial": usuario.data_fim_trial.isoformat() if usuario.data_fim_trial else None,
         "dataFimAssinatura": usuario.data_fim_assinatura.isoformat() if usuario.data_fim_assinatura else None,

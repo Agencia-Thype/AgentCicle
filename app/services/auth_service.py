@@ -29,7 +29,9 @@ def criar_token_jwt(email: str):
     return token
 
 def hash_senha(senha: str):
-    return pwd_context.hash(senha)
+    # Limitar senha para evitar problemas com bcrypt (max 72 bytes)
+    senha_limitada = senha[:72]
+    return pwd_context.hash(senha_limitada)
 
 def verificar_senha(senha: str, senha_hash: str):
     return pwd_context.verify(senha, senha_hash)

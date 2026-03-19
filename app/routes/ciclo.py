@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from app.db.database import get_db
 from app.services.auth_service import verificar_token
 from app.models.sqlalchemy_models import Usuario
@@ -52,7 +52,7 @@ def editar_data_menstruacao(
             user_id=usuario.id,
             data=data_nova,
             fase="Menstruação",
-            created_at=datetime.now(datetime.timezone.utc)
+            created_at=datetime.now(timezone.utc)
         )
         db.add(novo_registro)
 

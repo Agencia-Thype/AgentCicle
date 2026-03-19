@@ -64,15 +64,16 @@ def validar_email(req: ValidarEmailRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Código inválido")
 
     user.verificado = 1
-    
-    # Ativar trial de 7 dias após validação do email
-    if not user.data_fim_trial:
-        hoje = datetime.now(timezone.utc)
-        user.data_criacao_conta = hoje
-        user.data_fim_trial = hoje + timedelta(days=7)
-    
+
+    # TRIAL TEMPORARIAMENTE DESATIVADO PARA TESTES
+    # # Ativar trial de 7 dias após validação do email
+    # if not user.data_fim_trial:
+    #     hoje = datetime.now(timezone.utc)
+    #     user.data_criacao_conta = hoje
+    #     user.data_fim_trial = hoje + timedelta(days=7)
+
     db.commit()
-    return {"mensagem": "E-mail verificado com sucesso! Seu período de teste gratuito de 7 dias foi ativado."}
+    return {"mensagem": "E-mail verificado com sucesso!"}
 
 
 @router.post("/login")
@@ -94,13 +95,18 @@ def login(usuario: UsuarioLogin, db: Session = Depends(get_db)):
 
         # Gerar token JWT
         token = criar_token_jwt(user.email)
-        
+
         # Obter status completo do usuário para o frontend armazenar
-        status_assinatura = obter_status_login(db, user.id)
-        
+        try:
+            status_assinatura = obter_status_login(db, user.id)
+        except Exception as e:
+            print(f"⚠️ Erro ao obter status de assinatura: {str(e)}")
+            # Continuar mesmo sem status de assinatura
+            status_assinatura = None
+
         print(f"✅ Login bem-sucedido para: {usuario.email}")
         return {
-            "access_token": token, 
+            "access_token": token,
             "token_type": "bearer",
             "usuario": {
                 "id": user.id,

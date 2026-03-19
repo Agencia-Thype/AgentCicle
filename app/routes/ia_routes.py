@@ -23,10 +23,14 @@ def conversar_ia(
     db: Session = Depends(get_db),
     email: str = Depends(verificar_token)
 ):
+    # Validar que a pergunta não está vazia
+    if not pergunta or not pergunta.strip():
+        raise HTTPException(status_code=400, detail="A pergunta não pode estar vazia")
+
     usuario = db.query(Usuario).filter(Usuario.email == email).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuária não encontrada")
-    
+
     # Garantir que temos os dados mais atualizados
     db.refresh(usuario)
     
