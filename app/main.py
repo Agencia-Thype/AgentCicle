@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import time
 from app.routes import auth, ciclo, diario, fase_atual, ia_routes, perfil, pontuacao, relatorio, usuario
-from app.routes import treino, assinatura
+from app.routes import treino, assinatura, kegel
 from dotenv import load_dotenv
 from app.utils.logging import log_request, Timer
 
@@ -55,4 +55,5 @@ app.include_router(fase_atual.router)
 app.include_router(relatorio.router)
 app.include_router(ia_routes.router)
 app.include_router(assinatura.router)
+app.include_router(kegel.router)
 

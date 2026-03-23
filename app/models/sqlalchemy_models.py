@@ -30,7 +30,10 @@ class Usuario(Base):
     assinatura_ativa = Column(Integer, default=0)  # Usando Integer em vez de Boolean para compatibilidade
     data_inicio_assinatura = Column(DateTime, nullable=True)
     data_fim_assinatura = Column(DateTime, nullable=True)
-    
+
+    # Campo para controle do nível de exercícios de Kegel
+    nivel_kegel = Column(String, default="iniciante", nullable=True)
+
     treinos = relationship("TreinoRealizado", back_populates="usuario")
     registros_ciclo = relationship("DiarioCiclo", back_populates="usuario")
 
@@ -73,3 +76,17 @@ class DiarioCiclo(Base):
     created_at = Column(DateTime)
 
     usuario = relationship("Usuario", back_populates="registros_ciclo")
+
+class ProgressoKegel(Base):
+    __tablename__ = "progresso_kegel"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"))
+    nivel = Column(String, nullable=False)  # iniciante, intermediario, avancado
+    exercicio_id = Column(String, nullable=False)
+    data_conclusao = Column(DateTime, nullable=False)
+    series_completas = Column(Integer, default=0)
+    percentual_conclusao = Column(Float, default=0)
+    concluido = Column(Integer, default=0)  # 0 = não, 1 = sim
+
+    usuario = relationship("Usuario")
