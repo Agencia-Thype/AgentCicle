@@ -1,7 +1,7 @@
 # app/routes/diario.py
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from datetime import date, datetime
+from datetime import date
 
 from app.db.database import get_db
 from app.services.auth_service import verificar_token
@@ -21,51 +21,11 @@ def registrar_sintomas(
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuária não encontrada")
 
-    data_registro = dados.data or date.today()
-    is_hoje = data_registro == date.today()
-
-    registro = db.query(DiarioCiclo).filter_by(user_id=usuario.id, data=data_registro).first()
-
-    if registro:
-        registro.sentimento = ", ".join(dados.sentimentos)
-        registro.observacao = dados.observacao
-        registro.fase = dados.fase or registro.fase
-    else:
-        novo_registro = DiarioCiclo(
-            user_id=usuario.id,
-            data=data_registro,
-            sentimento=", ".join(dados.sentimentos),
-            observacao=dados.observacao,
-            fase=dados.fase,
-            created_at=datetime.now()
-        )
-        db.add(novo_registro)
-
-        if is_hoje:
-            usuario.pontos_totais = (usuario.pontos_totais or 0) + 2
-
-    # Novo: registrar ou atualizar peso
-    if dados.peso is not None:
-        peso_existente = db.query(HistoricoPeso).filter_by(
-            user_id=usuario.id,
-            data_registro=data_registro
-        ).first()
-
-        if peso_existente:
-            peso_existente.peso = dados.peso
-        else:
-            novo_peso = HistoricoPeso(
-                user_id=usuario.id,
-                peso=dados.peso,
-                data_registro=data_registro
-            )
-            db.add(novo_peso)
-
-    db.commit()
+    pontos = registrar_service(db, usuario, dados)
 
     return {
         "mensagem": "Sintomas registrados com sucesso!",
-        "pontos": 2 if is_hoje else 0
+        "pontos": pontos
     }
 
 

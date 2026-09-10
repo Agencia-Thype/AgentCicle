@@ -9,7 +9,10 @@ class NivelKegel(str, Enum):
 
 class FaseKegel(BaseModel):
     """Fase individual do exercício de Kegel (contração/relaxamento)"""
-    tipo: str = Field(..., description="Tipo da fase: 'contracao' ou 'relaxamento'")
+    tipo: str = Field(
+        ...,
+        description="Tipo da fase: 'contracao', 'manter', 'contracao_forte', 'soltar' ou 'relaxamento'",
+    )
     duracao_segundos: float = Field(..., description="Duração em segundos")
     instrucao: str = Field(..., description="Instrução textual para o usuário")
 

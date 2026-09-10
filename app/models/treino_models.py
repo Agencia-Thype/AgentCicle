@@ -20,4 +20,6 @@ class TreinoResponse(BaseModel):
 
 class ConcluirTreinoRequest(BaseModel):
     tipo_treino: str
-    percentual: float  
+    percentual: float
+    # Nomes dos exercícios marcados; opcional para versões antigas do app.
+    exercicios_concluidos: Optional[list[str]] = None

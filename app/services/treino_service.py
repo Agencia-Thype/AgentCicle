@@ -3,6 +3,41 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.models.sqlalchemy_models import Usuario, TreinoRealizado
 from app.services.ciclo_service import calcular_fase_do_ciclo
+from app.utils.datas import hoje_brasilia
+
+SEQUENCIA_TREINOS = ["A", "B", "C", "D", "E"]
+
+
+def definir_treino_do_dia(db: Session, usuario_id: int, fase: str) -> str:
+    """
+    Treino que a usuária deve fazer hoje - é um só por dia.
+
+    Se já houve check-in hoje, é esse treino (mesmo que a fase tenha virado);
+    senão, o próximo da sequência A-E dentro da fase atual. /treino-dia e
+    /treino-dia/concluir usam esta mesma regra, para a API não aceitar pontuar
+    outro treino no mesmo dia.
+    """
+    registro_hoje = (
+        db.query(TreinoRealizado)
+        .filter(TreinoRealizado.usuario_id == usuario_id, TreinoRealizado.data == hoje_brasilia())
+        .order_by(TreinoRealizado.id)
+        .first()
+    )
+    if registro_hoje:
+        return registro_hoje.treino
+
+    ultimo = (
+        db.query(TreinoRealizado)
+        .filter(TreinoRealizado.usuario_id == usuario_id, TreinoRealizado.fase == fase)
+        .order_by(TreinoRealizado.data.desc(), TreinoRealizado.id.desc())
+        .first()
+    )
+    if not ultimo or ultimo.treino not in SEQUENCIA_TREINOS:
+        return SEQUENCIA_TREINOS[0]
+
+    idx = SEQUENCIA_TREINOS.index(ultimo.treino)
+    return SEQUENCIA_TREINOS[(idx + 1) % len(SEQUENCIA_TREINOS)]
+
 
 def calcular_percentual_por_fase(db: Session, user_id: int, fase: str, data_base: date) -> float:
     treinos = db.query(TreinoRealizado).filter(
@@ -34,28 +69,7 @@ def obter_treino_por_fase(email: str, db: Session):
     fase_info = calcular_fase_do_ciclo(str(usuario.data_menstruacao), usuario.duracao_ciclo or 28)
     fase = fase_info["fase"]
     print(f"DEBUG: Fase calculada: '{fase}'")
-    sequencia_treinos = ["A", "B", "C", "D", "E"]
-
-    treinos_feitos = (
-        db.query(TreinoRealizado)
-        .filter(TreinoRealizado.usuario_id == usuario.id)
-        .filter(TreinoRealizado.fase == fase)
-        .order_by(TreinoRealizado.data.desc())
-        .all()
-    )
-
-    hoje = date.today()
-    treino_hoje = next((t for t in treinos_feitos if t.data == hoje), None)
-
-    if treino_hoje:
-        proximo_treino = treino_hoje.treino
-    else:
-        if not treinos_feitos:
-            proximo_treino = "A"
-        else:
-            ultimo = treinos_feitos[0].treino
-            idx = sequencia_treinos.index(ultimo)
-            proximo_treino = sequencia_treinos[(idx + 1) % len(sequencia_treinos)]
+    proximo_treino = definir_treino_do_dia(db, usuario.id, fase)
 
     tabela_por_fase = {
         "Menstruação": "fase_1_menstruacao",
@@ -132,7 +146,7 @@ def usuario_tem_treino_concluido_hoje(db: Session, usuario_id: int) -> bool:
     Returns:
         bool: True se a usuária já concluiu algum treino hoje, False caso contrário
     """
-    hoje = date.today()
+    hoje = hoje_brasilia()
     treino_hoje = db.query(TreinoRealizado).filter(
         TreinoRealizado.usuario_id == usuario_id,
         TreinoRealizado.data == hoje,

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Float, Integer, String, Date, Numeric, Text, ForeignKey
+from sqlalchemy import Column, DateTime, Float, Integer, String, Date, Numeric, Text, ForeignKey, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.db.database import Base
 
@@ -8,7 +8,8 @@ class Usuario(Base):
     id = Column(Integer, primary_key=True, index=True)
     nome = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False)
-    senha_hash = Column(String, nullable=False)
+    senha_hash = Column(String, nullable=True)  # legado (pré-Firebase); não usado para novos usuários
+    firebase_uid = Column(String, unique=True, index=True, nullable=True)
     verificado = Column(Integer, default=0)
     codigo_validacao = Column(String)  # ✅ ESTA LINHA É NOVA
     tipo = Column(String, default="comum")
@@ -59,7 +60,9 @@ class TreinoRealizado(Base):
     fase = Column(String)
     treino = Column(String)
     percentual_concluido = Column(Float)
-    pontos = Column(Integer) 
+    pontos = Column(Integer)
+    # Nomes dos exercícios marcados, para a tela restaurar exatamente os mesmos.
+    exercicios_concluidos = Column(JSON)
 
     usuario = relationship("Usuario", back_populates="treinos")
 
@@ -90,3 +93,24 @@ class ProgressoKegel(Base):
     concluido = Column(Integer, default=0)  # 0 = não, 1 = sim
 
     usuario = relationship("Usuario")
+
+
+class KegelDiario(Base):
+    """
+    Exercícios de Kegel feitos em cada dia - base da pontuação diária.
+
+    ProgressoKegel é vitalício (desbloqueio de nível); este registro é por dia,
+    uma linha por exercício, para pontuar cada exercício só uma vez por dia.
+    """
+    __tablename__ = "kegel_diario"
+    __table_args__ = (
+        UniqueConstraint("usuario_id", "data", "exercicio_id", name="uq_kegel_diario_exercicio_dia"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, index=True)
+    data = Column(Date, nullable=False)
+    nivel = Column(String, nullable=False)
+    exercicio_id = Column(String, nullable=False)
+    pontos = Column(Integer, default=0)
+    created_at = Column(DateTime)

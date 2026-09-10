@@ -3,6 +3,7 @@ from typing import Union
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app.models.sqlalchemy_models import Usuario, DiarioCiclo
+from app.utils.datas import hoje_brasilia
 
 
 def calcular_fase_do_ciclo(data_menstruacao: Union[str, date], duracao_ciclo: int = 28):
@@ -16,9 +17,13 @@ def calcular_fase_do_ciclo(data_menstruacao: Union[str, date], duracao_ciclo: in
             "fase": "Desconhecida",
             "mensagem": "Data da menstruação não cadastrada",
             "dias_desde_menstruacao": 0,
+            "dia_do_ciclo": None,
+            "duracao_ciclo": duracao_ciclo,
         }
         
-    if duracao_ciclo < 21 or duracao_ciclo > 35:
+    # Metade dos chamadores passa usuario.duracao_ciclo direto, que é nullable.
+    # Sem esta guarda, a comparação abaixo estoura TypeError com None.
+    if duracao_ciclo is None or duracao_ciclo < 21 or duracao_ciclo > 35:
         duracao_ciclo = 28
 
     # Define as faixas de dias para cada fase
@@ -36,7 +41,7 @@ def calcular_fase_do_ciclo(data_menstruacao: Union[str, date], duracao_ciclo: in
     
     print(f"DEBUG: Intervalos de dias para fases: Menstruação={fase_menstruacao}, Folicular={fase_folicular}, Ovulatória={fase_ovulatoria}, Lútea={fase_lutea}")
 
-    hoje = datetime.now().date()
+    hoje = hoje_brasilia()
     inicio = (
         datetime.strptime(data_menstruacao, "%Y-%m-%d").date()
         if isinstance(data_menstruacao, str)
@@ -52,6 +57,10 @@ def calcular_fase_do_ciclo(data_menstruacao: Union[str, date], duracao_ciclo: in
                 "fase": nome,
                 "mensagem": msg,
                 "dias_desde_menstruacao": dias_passados,
+                # Dia do ciclo como a usuária conta: o primeiro dia de
+                # menstruação é o dia 1, não o dia 0.
+                "dia_do_ciclo": dias_passados + 1,
+                "duracao_ciclo": duracao_ciclo,
                 "inicio_fase": inicio_dia,
                 "fim_fase": fim_dia,
             }
@@ -60,6 +69,8 @@ def calcular_fase_do_ciclo(data_menstruacao: Union[str, date], duracao_ciclo: in
         "fase": "Desconhecida",
         "mensagem": "Não foi possível calcular a fase",
         "dias_desde_menstruacao": dias_passados,
+        "dia_do_ciclo": dias_passados + 1,
+        "duracao_ciclo": duracao_ciclo,
     }
 
 def registrar_nova_menstruacao(db: Session, email: str, data_inicio: date):

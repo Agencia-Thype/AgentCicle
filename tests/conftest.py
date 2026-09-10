@@ -29,7 +29,7 @@ from app.db.database import Base, get_db
 # Importar TODOS os modelos para garantir que estão registrados no Base.metadata
 from app.models import sqlalchemy_models, ciclo_models, diario_models, treino_models, conversaIA_models, IaHistoricoMensagem_models
 from app.models.sqlalchemy_models import Usuario  # Import explicito para uso nos fixtures
-from app.services.auth_service import criar_token_jwt, hash_senha
+from app.services.auth_service import verificar_token
 
 
 # Database de teste (SQLite em arquivo para compartilhar entre conexões)
@@ -112,14 +112,11 @@ async def async_client(db: Session) -> AsyncGenerator[AsyncClient, None]:
 @pytest.fixture
 def usuario_teste(db: Session) -> Usuario:
     """Cria um usuário de teste"""
-    # Usar a função hash_senha do auth_service para consistência
-    senha_hash = hash_senha("test123")
-
     from datetime import date
     usuario = Usuario(
         nome="Usuária Teste",
         email="teste@example.com",
-        senha_hash=senha_hash,
+        firebase_uid="firebase-uid-teste",
         verificado=1,
         data_criacao=None,
         data_fim_trial=None,
@@ -133,26 +130,19 @@ def usuario_teste(db: Session) -> Usuario:
 
 
 @pytest.fixture
-def token_teste(usuario_teste: Usuario) -> str:
-    """Cria um token JWT válido para o usuário de teste"""
-    return criar_token_jwt(usuario_teste.email)
-
-
-@pytest.fixture
-def headers_auth(token_teste: str) -> dict:
-    """Retorna headers de autenticação"""
-    return {"Authorization": f"Bearer {token_teste}"}
+def headers_auth(usuario_teste: Usuario) -> dict:
+    """Sobrescreve verificar_token para simular um usuário autenticado via Firebase"""
+    fastapi_app.dependency_overrides[verificar_token] = lambda: usuario_teste.email
+    return {"Authorization": "Bearer test-token"}
 
 
 @pytest.fixture
 def usuario_admin(db: Session) -> Usuario:
     """Cria um usuário admin para testes"""
-    senha_hash = hash_senha("admin123")
-
     usuario = Usuario(
         nome="Admin Teste",
         email="admin@example.com",
-        senha_hash=senha_hash,
+        firebase_uid="firebase-uid-admin",
         verificado=1,
         data_criacao=None,
         data_fim_trial=None
@@ -164,38 +154,13 @@ def usuario_admin(db: Session) -> Usuario:
 
 
 @pytest.fixture
-def token_admin(usuario_admin: Usuario) -> str:
-    """Cria um token JWT válido para o admin"""
-    return criar_token_jwt(usuario_admin.email)
-
-
-@pytest.fixture
-def headers_admin(token_admin: str) -> dict:
-    """Retorna headers de autenticação para admin"""
-    return {"Authorization": f"Bearer {token_admin}"}
+def headers_admin(usuario_admin: Usuario) -> dict:
+    """Sobrescreve verificar_token para simular o admin autenticado via Firebase"""
+    fastapi_app.dependency_overrides[verificar_token] = lambda: usuario_admin.email
+    return {"Authorization": "Bearer test-token"}
 
 
 # Dados de teste comuns
-@pytest.fixture
-def dados_registro() -> dict:
-    """Dados válidos para registro"""
-    return {
-        "nome": "Maria Silva",
-        "email": "maria.silva@example.com",
-        "senha": "test123",
-        "confirmacao_senha": "test123"
-    }
-
-
-@pytest.fixture
-def dados_login() -> dict:
-    """Dados válidos para login"""
-    return {
-        "email": "teste@example.com",
-        "senha": "test123"
-    }
-
-
 @pytest.fixture
 def dados_ciclo() -> dict:
     """Dados válidos para registro de ciclo"""

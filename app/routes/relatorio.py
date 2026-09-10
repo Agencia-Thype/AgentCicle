@@ -11,7 +11,7 @@ router = APIRouter(prefix="/relatorio", tags=["Relatórios"])
 @router.get("/mensal")
 @verificar_acesso(recurso_premium=True, permite_trial=False)
 def relatorio_mensal(
-    mes: str = Query(..., regex="^\\d{4}-\\d{2}$"),  # Ex: 2025-04
+    mes: str = Query(..., pattern="^\\d{4}-\\d{2}$"),  # Ex: 2025-04
     db: Session = Depends(get_db),
     email: str = Depends(verificar_token)
 ):

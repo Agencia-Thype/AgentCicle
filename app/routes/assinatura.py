@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import date, datetime, timedelta
 import time
 
+from app.config import cobranca_ativa
 from app.db.database import get_db
 from app.services.auth_service import verificar_token
 from app.models.sqlalchemy_models import Usuario
@@ -14,10 +15,23 @@ from app.services.assinatura_service import (
     obter_status_login,
     obter_status_resumido
 )
+from app.services.pagamento_service import validar_compra
 from app.utils.logging import log_info, log_warning, Timer
 from app.utils.cache import get_from_cache, set_in_cache, invalidate_cache
 
 router = APIRouter(prefix="/assinatura", tags=["Assinatura"])
+
+
+def exigir_cobranca_ativa():
+    """
+    Esconde as rotas de compra enquanto o app é gratuito.
+
+    Publicado sem paywall, o app não pode expor nenhum fluxo de compra: seria
+    uma venda fora do StoreKit / Play Billing. Responde 404 para que a rota
+    simplesmente não exista do ponto de vista do cliente.
+    """
+    if not cobranca_ativa():
+        raise HTTPException(status_code=404, detail="Not Found")
 
 @router.get("/status")
 def get_status_assinatura(
@@ -101,32 +115,44 @@ def get_status_assinatura(
     return status_completo
 
 
-@router.post("/ativar")
+@router.post("/ativar", dependencies=[Depends(exigir_cobranca_ativa)])
 def ativar_plano(
-    duracao_meses: int = Body(1, embed=True),
+    plataforma: str = Body(..., embed=True),
+    token_compra: str = Body(..., embed=True),
     db: Session = Depends(get_db),
     email: str = Depends(verificar_token)
 ):
     """
-    Endpoint para ativar a assinatura (simulação, sem integração com pagamentos reais).
+    Ativa a assinatura a partir de uma compra feita na loja.
+
+    A versão anterior desta rota ativava premium só com a duração no corpo, sem
+    nenhuma prova de pagamento: qualquer cliente autenticado se dava premium de
+    graça. Agora a compra é obrigatoriamente validada junto à loja antes de
+    qualquer escrita no banco.
     """
-    # Validar duração
-    if duracao_meses <= 0:
-        raise HTTPException(status_code=400, detail="Duração deve ser maior que 0")
+    if plataforma not in ("ios", "android"):
+        raise HTTPException(status_code=400, detail="Plataforma inválida")
 
     usuario = db.query(Usuario).filter(Usuario.email == email).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
 
-    resultado = ativar_assinatura(db, usuario.id, duracao_meses)
+    # Falha fechado enquanto a integração com as lojas não existir.
+    compra = validar_compra(plataforma, token_compra)
+
+    resultado = ativar_assinatura(db, usuario.id, compra.duracao_meses)
+    log_info(
+        "Assinatura ativada por compra validada",
+        {"usuario_id": usuario.id, "plataforma": compra.plataforma, "transacao": compra.id_transacao},
+    )
 
     return {
-        "mensagem": f"Assinatura ativada com sucesso por {duracao_meses} meses!",
+        "mensagem": "Assinatura ativada com sucesso!",
         "status": resultado
     }
 
 
-@router.post("/cancelar")
+@router.post("/cancelar", dependencies=[Depends(exigir_cobranca_ativa)])
 def cancelar_plano(
     db: Session = Depends(get_db),
     email: str = Depends(verificar_token)

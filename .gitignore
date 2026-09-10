@@ -1,5 +1,6 @@
 # Ignorar ambiente virtual
 venv/
+.venv/
 
 # Cache do Python
 __pycache__/
@@ -12,6 +13,9 @@ __pycache__/
 *.log
 .env
 .DS_Store
+
+# Credenciais do Firebase (nunca commitar)
+*firebase-adminsdk*.json
 
 # Testes
 test.db

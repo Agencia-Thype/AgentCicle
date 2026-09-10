@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import time
@@ -12,9 +13,29 @@ load_dotenv()
 app = FastAPI(title="API Ciclo Menstrual")
 
 # Configurar CORS
+# Em produção, defina CORS_ORIGINS com uma lista separada por vírgulas
+# (ex: "https://app.agentcicle.com"). CORS só afeta navegadores - o app nativo
+# não é impactado por uma lista vazia.
+_cors_origins_env = os.getenv("CORS_ORIGINS")
+_is_dev = os.getenv("ENVIRONMENT", "production").lower() == "development"
+
+if _cors_origins_env:
+    allow_origins = [origin.strip() for origin in _cors_origins_env.split(",") if origin.strip()]
+elif _is_dev:
+    # Origens do Expo Web / Metro durante o desenvolvimento local.
+    allow_origins = [
+        "http://localhost:8081",
+        "http://localhost:19006",
+        "http://127.0.0.1:8081",
+        "http://127.0.0.1:19006",
+    ]
+else:
+    # Sem CORS_ORIGINS em produção, nenhum navegador é liberado (fail-safe).
+    allow_origins = []
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Em produção, substitua por origens específicas
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -57,3 +78,18 @@ app.include_router(ia_routes.router)
 app.include_router(assinatura.router)
 app.include_router(kegel.router)
 
+
+@app.get("/health", tags=["Infra"])
+def health_check():
+    """Verifica se a API está no ar e se o banco responde."""
+    from sqlalchemy import text
+    from app.db.database import engine
+
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        db_ok = True
+    except Exception:
+        db_ok = False
+
+    return {"status": "ok" if db_ok else "degraded", "database": db_ok}

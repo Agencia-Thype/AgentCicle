@@ -1,9 +1,13 @@
 from sqlalchemy.orm import Session
 from app.models.kegel_models import NivelKegel, ExercicioKegel, TreinoKegelResponse
 from app.data.kegel_exercises import get_exercicios_por_nivel, get_all_exercicios
-from app.models.sqlalchemy_models import Usuario, ProgressoKegel
+from app.models.sqlalchemy_models import Usuario, ProgressoKegel, KegelDiario
+from app.utils.datas import hoje_brasilia
 from typing import Optional, List
 from datetime import datetime, timedelta
+
+# Um dia completo de Kegel vale isso; cada exercício leva a sua fração.
+PONTOS_KEGEL_DIA = 10
 
 def obter_treino_kegel(db: Session, email: str, nivel_override: Optional[NivelKegel] = None) -> dict:
     """
@@ -171,6 +175,41 @@ def obter_status_niveis(db: Session, usuario_id: int) -> dict:
     return niveis_status
 
 
+def pontuar_exercicio_do_dia(db: Session, usuario: Usuario, nivel: NivelKegel, exercicio_id: str) -> int:
+    """
+    Dá os pontos de um exercício de Kegel concluído hoje. Não faz commit.
+
+    Cada exercício pontua uma vez por dia. O dia vale PONTOS_KEGEL_DIA no total,
+    repartido entre os exercícios do nível (3 exercícios: 3 + 3 + 4); passado
+    o total, trocar de nível não soma mais nada.
+    """
+    hoje = hoje_brasilia()
+    registros_hoje = db.query(KegelDiario).filter(
+        KegelDiario.usuario_id == usuario.id,
+        KegelDiario.data == hoje
+    ).all()
+
+    if any(r.exercicio_id == exercicio_id for r in registros_hoje):
+        return 0
+
+    total_do_nivel = len(get_exercicios_por_nivel(nivel)) or 1
+    exercicios_no_dia = len(registros_hoje) + 1
+    pontos_ate_agora = sum(r.pontos or 0 for r in registros_hoje)
+    alvo = min(PONTOS_KEGEL_DIA, (PONTOS_KEGEL_DIA * exercicios_no_dia) // total_do_nivel)
+    pontos = max(0, alvo - pontos_ate_agora)
+
+    db.add(KegelDiario(
+        usuario_id=usuario.id,
+        data=hoje,
+        nivel=NivelKegel(nivel).value,
+        exercicio_id=exercicio_id,
+        pontos=pontos,
+        created_at=datetime.now()
+    ))
+    usuario.pontos_totais = (usuario.pontos_totais or 0) + pontos
+    return pontos
+
+
 def registrar_conclusao_exercicio(db: Session, email: str, nivel: NivelKegel, exercicio_id: str, percentual: float) -> dict:
     """
     Registra a conclusão de um exercício de Kegel.
@@ -188,6 +227,13 @@ def registrar_conclusao_exercicio(db: Session, email: str, nivel: NivelKegel, ex
     usuario = db.query(Usuario).filter(Usuario.email == email).first()
     if not usuario:
         return {"erro": "Usuária não encontrada"}
+
+    if exercicio_id not in {ex.id for ex in get_exercicios_por_nivel(nivel)}:
+        return {"erro": "Exercício não pertence a este nível"}
+
+    # Pontos do dia antes do progresso: o progresso abaixo é vitalício e não
+    # muda ao repetir um exercício já concluído em outro dia.
+    pontos_ganhos = pontuar_exercicio_do_dia(db, usuario, nivel, exercicio_id) if percentual >= 100 else 0
 
     # Verificar se já existe registro
     progresso_existente = db.query(ProgressoKegel).filter(
@@ -207,8 +253,6 @@ def registrar_conclusao_exercicio(db: Session, email: str, nivel: NivelKegel, ex
             # Marcar como concluído se atingiu 100%
             if percentual >= 100:
                 progresso_existente.concluido = 1
-        else:
-            return {"mensagem": "Percentual não maior que o anterior", "progresso": progresso_existente}
     else:
         # Criar novo registro
         novo_progresso = ProgressoKegel(
@@ -229,6 +273,8 @@ def registrar_conclusao_exercicio(db: Session, email: str, nivel: NivelKegel, ex
     resposta = {
         "mensagem": "Exercício registrado com sucesso",
         "percentual": percentual,
+        "pontos_ganhos": pontos_ganhos,
+        "pontos_totais": usuario.pontos_totais,
         "nivel_concluido": progresso_nivel["concluido"],
         "exercicios_concluidos": len(progresso_nivel["exercicios_concluidos"]),
         "total_exercicios": len(get_exercicios_por_nivel(nivel))

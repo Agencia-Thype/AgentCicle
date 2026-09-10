@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
+from app.config import cobranca_ativa
 from app.models.sqlalchemy_models import Usuario
 from app.utils.cache import get_from_cache, set_in_cache, invalidate_cache
 
@@ -23,6 +24,28 @@ def garantir_chave_pode_pontuar(status: dict) -> dict:
     return status
 
 
+def status_acesso_livre() -> dict:
+    """
+    Status devolvido enquanto COBRANCA_ATIVA=false: acesso total, sem trial e
+    sem assinatura. Nenhum campo sugere cobrança, porque o frontend não pode
+    exibir preço nem paywall nesse modo (App Store 3.1.1 / Google Play).
+    """
+    return {
+        "trialAtivo": False,
+        "assinaturaAtiva": False,
+        "temAcesso": True,
+        "podePontuar": True,
+        "podeUsarRecursosBasicos": True,
+        "podeUsarPremium": True,
+        "diasRestantesTrial": 0,
+        "dataFimTrial": None,
+        "dataFimAssinatura": None,
+        "jaTeveAssinatura": False,
+        "cobrancaAtiva": False,
+        "statusTipo": "gratuito",
+    }
+
+
 def verificar_status_usuario(db: Session, usuario_id: int) -> dict:
     """
     Verifica o status de trial e assinatura do usuário.
@@ -35,6 +58,11 @@ def verificar_status_usuario(db: Session, usuario_id: int) -> dict:
     Returns:
         dict: Status completo do usuário com informações de trial e assinatura
     """
+    # App gratuito: ninguém perde acesso pelo fim do trial. Verificado antes do
+    # cache para que um status salvo antes de desligar a cobrança não bloqueie.
+    if not cobranca_ativa():
+        return status_acesso_livre()
+
     # Verifica se já existe em cache
     cache_key = f"status_usuario_{usuario_id}"
     cached_status = get_from_cache(cache_key)
@@ -403,6 +431,11 @@ def obter_status_login(db: Session, usuario_id: int) -> dict:
     })
     
     # Adiciona mensagem informativa sobre o período baseado no status
+    if not cobranca_ativa():
+        status["mensagem"] = "Acesso completo liberado. Bom treino!"
+        status["statusTipo"] = "gratuito"
+        return status
+
     if status["assinaturaAtiva"]:
         status["mensagem"] = "Você possui uma assinatura ativa. Aproveite todos os recursos!"
         status["statusTipo"] = "premium"

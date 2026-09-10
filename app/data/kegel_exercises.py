@@ -14,15 +14,16 @@ KEGEL_EXERCISES = {
                 SerieKegel(
                     repeticoes=5,
                     fases=[
-                        FaseKegel(tipo="contracao", duracao_segundos=4, instrucao="Contraia e mantenha"),
-                        FaseKegel(tipo="relaxamento", duracao_segundos=4, instrucao="Relaxe completamente")
+                        FaseKegel(tipo="contracao", duracao_segundos=4, instrucao="Contraia"),
+                        FaseKegel(tipo="manter", duracao_segundos=4, instrucao="Mantenha a contração"),
+                        FaseKegel(tipo="relaxamento", duracao_segundos=5, instrucao="Relaxe completamente")
                     ]
                 ),
                 SerieKegel(
                     repeticoes=12,
                     fases=[
                         FaseKegel(tipo="contracao", duracao_segundos=1.5, instrucao="Contraia"),
-                        FaseKegel(tipo="relaxamento", duracao_segundos=1.5, instrucao="Solte")
+                        FaseKegel(tipo="soltar", duracao_segundos=1.5, instrucao="Solta")
                     ]
                 )
             ]
@@ -38,7 +39,8 @@ KEGEL_EXERCISES = {
                 SerieKegel(
                     repeticoes=8,
                     fases=[
-                        FaseKegel(tipo="contracao", duracao_segundos=3, instrucao="Contraia e mantenha"),
+                        FaseKegel(tipo="contracao", duracao_segundos=3, instrucao="Contraia"),
+                        FaseKegel(tipo="manter", duracao_segundos=3, instrucao="Mantenha a contração"),
                         FaseKegel(tipo="contracao_forte", duracao_segundos=1, instrucao="Contraia mais forte (uma piscada a mais)"),
                         FaseKegel(tipo="relaxamento", duracao_segundos=4, instrucao="Relaxe")
                     ]
@@ -56,8 +58,8 @@ KEGEL_EXERCISES = {
                 SerieKegel(
                     repeticoes=20,
                     fases=[
-                        FaseKegel(tipo="contracao", duracao_segundos=1.5, instrucao="Contraia"),
-                        FaseKegel(tipo="relaxamento", duracao_segundos=1.5, instrucao="Solte")
+                        FaseKegel(tipo="contracao", duracao_segundos=3, instrucao="Contraia"),
+                        FaseKegel(tipo="soltar", duracao_segundos=3, instrucao="Solta")
                     ]
                 )
             ]
@@ -75,7 +77,8 @@ KEGEL_EXERCISES = {
                 SerieKegel(
                     repeticoes=6,
                     fases=[
-                        FaseKegel(tipo="contracao", duracao_segundos=6, instrucao="Contraia e mantenha"),
+                        FaseKegel(tipo="contracao", duracao_segundos=6, instrucao="Contraia"),
+                        FaseKegel(tipo="manter", duracao_segundos=6, instrucao="Mantenha a contração"),
                         FaseKegel(tipo="relaxamento", duracao_segundos=6, instrucao="Relaxe completamente")
                     ]
                 ),
@@ -83,7 +86,7 @@ KEGEL_EXERCISES = {
                     repeticoes=15,
                     fases=[
                         FaseKegel(tipo="contracao", duracao_segundos=1, instrucao="Contraia"),
-                        FaseKegel(tipo="relaxamento", duracao_segundos=1, instrucao="Solte")
+                        FaseKegel(tipo="soltar", duracao_segundos=1, instrucao="Solta")
                     ]
                 )
             ]
@@ -99,7 +102,8 @@ KEGEL_EXERCISES = {
                 SerieKegel(
                     repeticoes=8,
                     fases=[
-                        FaseKegel(tipo="contracao", duracao_segundos=5, instrucao="Contraia e mantenha"),
+                        FaseKegel(tipo="contracao", duracao_segundos=5, instrucao="Contraia"),
+                        FaseKegel(tipo="manter", duracao_segundos=5, instrucao="Mantenha a contração"),
                         FaseKegel(tipo="contracao_forte", duracao_segundos=2, instrucao="Contraia mais forte mais forte (duas piscadas a mais)"),
                         FaseKegel(tipo="relaxamento", duracao_segundos=7, instrucao="Relaxe")
                     ]
@@ -118,7 +122,7 @@ KEGEL_EXERCISES = {
                     repeticoes=30,
                     fases=[
                         FaseKegel(tipo="contracao", duracao_segundos=1, instrucao="Contraia"),
-                        FaseKegel(tipo="relaxamento", duracao_segundos=1, instrucao="Solte")
+                        FaseKegel(tipo="soltar", duracao_segundos=1, instrucao="Solta")
                     ]
                 )
             ]
@@ -136,7 +140,8 @@ KEGEL_EXERCISES = {
                 SerieKegel(
                     repeticoes=6,
                     fases=[
-                        FaseKegel(tipo="contracao", duracao_segundos=8, instrucao="Contraia e mantenha"),
+                        FaseKegel(tipo="contracao", duracao_segundos=8, instrucao="Contraia"),
+                        FaseKegel(tipo="manter", duracao_segundos=8, instrucao="Mantenha a contração"),
                         FaseKegel(tipo="relaxamento", duracao_segundos=8, instrucao="Relaxe completamente")
                     ]
                 ),
@@ -144,7 +149,7 @@ KEGEL_EXERCISES = {
                     repeticoes=20,
                     fases=[
                         FaseKegel(tipo="contracao", duracao_segundos=1, instrucao="Contraia"),
-                        FaseKegel(tipo="relaxamento", duracao_segundos=1, instrucao="Solte")
+                        FaseKegel(tipo="soltar", duracao_segundos=1, instrucao="Solta")
                     ]
                 )
             ]
@@ -160,7 +165,8 @@ KEGEL_EXERCISES = {
                 SerieKegel(
                     repeticoes=8,
                     fases=[
-                        FaseKegel(tipo="contracao", duracao_segundos=7, instrucao="Contraia e mantenha"),
+                        FaseKegel(tipo="contracao", duracao_segundos=7, instrucao="Contraia"),
+                        FaseKegel(tipo="manter", duracao_segundos=7, instrucao="Mantenha a contração"),
                         FaseKegel(tipo="contracao_forte", duracao_segundos=2, instrucao="Contraia mais forte mais forte (duas piscadas a mais)"),
                         FaseKegel(tipo="relaxamento", duracao_segundos=9, instrucao="Relaxe")
                     ]
@@ -179,7 +185,7 @@ KEGEL_EXERCISES = {
                     repeticoes=50,
                     fases=[
                         FaseKegel(tipo="contracao", duracao_segundos=1, instrucao="Contraia"),
-                        FaseKegel(tipo="relaxamento", duracao_segundos=1, instrucao="Solte")
+                        FaseKegel(tipo="soltar", duracao_segundos=1, instrucao="Solta")
                     ]
                 )
             ]

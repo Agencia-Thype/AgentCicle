@@ -58,6 +58,9 @@ def detalhes_fase_atual(
     return {
         "fase_atual": fase_atual,
         "descricao": descricao,
+        # Usados pelo app para exibir "Dia X de Y" sem inventar número.
+        "dia_do_ciclo": fase_info.get("dia_do_ciclo"),
+        "duracao_ciclo": fase_info.get("duracao_ciclo"),
         "percentual_atual": percentual_atual,
         "percentual_anterior": percentual_anterior,
         "sentimentos_anteriores": list(sentimentos)

@@ -1,0 +1,11 @@
+.git
+.env
+.expo
+.pytest_cache
+__pycache__
+*.pyc
+/tests
+/data
+/docs
+README.md
+*.db

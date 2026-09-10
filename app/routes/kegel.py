@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
 from typing import Optional
 
@@ -53,7 +53,9 @@ async def info_niveis_kegel(
 @router.post("/atualizar-nivel")
 @verificar_acesso(recurso_premium=False, permite_trial=True)
 async def atualizar_nivel(
-    novo_nivel: NivelKegel,
+    # Sem Body(), o FastAPI trata um parâmetro escalar como query string: o app
+    # envia o nível no corpo e a rota respondia 422 mesmo autenticada.
+    novo_nivel: NivelKegel = Body(...),
     db: Session = Depends(get_db),
     email: str = Depends(verificar_token)
 ):

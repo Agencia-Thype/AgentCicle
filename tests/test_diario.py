@@ -1,5 +1,8 @@
 import pytest
+from datetime import timedelta
 from fastapi.testclient import TestClient
+
+from app.services.diario_service import PONTOS_REGISTRO_DIARIO, hoje_brasilia
 
 
 class TestDiarioEndpoints:
@@ -210,3 +213,38 @@ class TestDiarioEndpointsIntegracao:
         # Verificar se foi atualizado
         response = client.get("/diario/resumo-do-dia?data=2024-01-20", headers=headers_auth)
         assert response.status_code == 200
+
+
+class TestDiarioPontuacao:
+    """Gamificação: só o primeiro registro do próprio dia pontua"""
+
+    def test_primeiro_registro_do_dia_pontua(self, client: TestClient, headers_auth: dict, db, usuario_teste):
+        dados = {"data": hoje_brasilia().isoformat(), "sentimentos": ["Feliz"]}
+
+        response = client.post("/diario/registrar-sintomas", headers=headers_auth, json=dados)
+
+        assert response.status_code == 200
+        assert response.json()["pontos"] == PONTOS_REGISTRO_DIARIO
+        db.refresh(usuario_teste)
+        assert usuario_teste.pontos_totais == PONTOS_REGISTRO_DIARIO
+
+    def test_editar_registro_do_dia_nao_pontua_de_novo(self, client: TestClient, headers_auth: dict, db, usuario_teste):
+        hoje = hoje_brasilia().isoformat()
+        client.post("/diario/registrar-sintomas", headers=headers_auth, json={"data": hoje, "sentimentos": ["Feliz"]})
+
+        response = client.post("/diario/registrar-sintomas", headers=headers_auth, json={"data": hoje, "sentimentos": ["Triste"]})
+
+        assert response.status_code == 200
+        assert response.json()["pontos"] == 0
+        db.refresh(usuario_teste)
+        assert usuario_teste.pontos_totais == PONTOS_REGISTRO_DIARIO
+
+    def test_registro_de_dia_passado_nao_pontua(self, client: TestClient, headers_auth: dict, db, usuario_teste):
+        ontem = (hoje_brasilia() - timedelta(days=1)).isoformat()
+
+        response = client.post("/diario/registrar-sintomas", headers=headers_auth, json={"data": ontem, "sentimentos": ["Feliz"]})
+
+        assert response.status_code == 200
+        assert response.json()["pontos"] == 0
+        db.refresh(usuario_teste)
+        assert (usuario_teste.pontos_totais or 0) == 0

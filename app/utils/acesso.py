@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from typing import Optional, Callable, Any
 import inspect
 
+from app.config import cobranca_ativa
 from app.db.database import get_db
 from app.services.auth_service import verificar_token
 from app.services.assinatura_service import verificar_status_usuario
@@ -25,6 +26,12 @@ def verificar_acesso(recurso_premium=False, permite_trial=True):
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
+            # App gratuito: nenhum recurso é bloqueado por assinatura.
+            if not cobranca_ativa():
+                if inspect.iscoroutinefunction(func):
+                    return await func(*args, **kwargs)
+                return func(*args, **kwargs)
+
             # O email sempre vem do verificar_token como parâmetro
             db = None
             email = None
