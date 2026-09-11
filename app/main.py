@@ -1,4 +1,13 @@
 import os
+import sys
+
+# Os prints de debug usam emoji. No Windows, quando a saída não é um console
+# UTF-8, o Python usa cp1252 e o print lança UnicodeEncodeError - a rota que
+# printou responde 500. Forçar UTF-8 (e trocar o que não der) evita isso.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import time
