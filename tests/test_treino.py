@@ -3,7 +3,9 @@ from datetime import timedelta
 from fastapi.testclient import TestClient
 
 from app.models.sqlalchemy_models import TreinoRealizado
-from app.services.treino_service import definir_treino_do_dia
+from sqlalchemy import text
+
+from app.services.treino_service import definir_treino_do_dia, letra_do_treino, treinos_da_fase
 from app.utils.datas import hoje_brasilia
 
 
@@ -168,3 +170,40 @@ class TestTreinoDoDia:
         self._registrar(db, usuario_teste.id, hoje_brasilia(), "Lútea", "C")
 
         assert definir_treino_do_dia(db, usuario_teste.id, "Folicular") == "C"
+
+
+class TestTreinosPorFase:
+    """Cada fase tem a sua quantidade de treinos, lida da tabela da fase"""
+
+    @pytest.mark.parametrize("tipo, letra", [
+        ("A", "A"),
+        ("TREINO A/quadríceps", "A"),
+        ("TREINO B - \nmembros superiores/músculos grandes", "B"),
+        ("TREINO C - cardio", "C"),
+        ("TREINO D - membros superiores/músculos pequenos (HIIT)", "D"),
+        ("TREINO E - GLÚTEOS", "E"),
+        ("full body", None),
+        (None, None),
+    ])
+    def test_letra_do_treino(self, tipo, letra):
+        assert letra_do_treino(tipo) == letra
+
+    def test_fase_com_tres_treinos_volta_ao_a_depois_do_c(self, db, usuario_teste):
+        db.execute(text("CREATE TABLE fase_4_tpm (tipo_treino TEXT, exercicio TEXT)"))
+        try:
+            db.execute(text(
+                "INSERT INTO fase_4_tpm VALUES "
+                "('TREINO A - full body', 'x'), ('TREINO B - back day', 'y'), ('TREINO C - cardio', 'z')"
+            ))
+            db.commit()
+            assert treinos_da_fase(db, "Lútea") == ["A", "B", "C"]
+
+            db.add(TreinoRealizado(
+                usuario_id=usuario_teste.id, data=hoje_brasilia() - timedelta(days=1),
+                fase="Lútea", treino="C", percentual_concluido=100, pontos=20,
+            ))
+            db.commit()
+            assert definir_treino_do_dia(db, usuario_teste.id, "Lútea") == "A"
+        finally:
+            db.execute(text("DROP TABLE IF EXISTS fase_4_tpm"))
+            db.commit()
