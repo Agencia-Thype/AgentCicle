@@ -99,8 +99,8 @@ class TestAssinaturaEndpoints:
         self, client: TestClient, headers_auth: dict, db: Session, usuario_teste, monkeypatch
     ):
         """
-        Enquanto pagamento_service.validar_compra não estiver implementado,
-        nenhuma assinatura pode ser gravada no banco.
+        Sem as credenciais das lojas configuradas no servidor, a validação
+        falha fechado (503) e nada é gravado no banco.
         """
         monkeypatch.setenv("COBRANCA_ATIVA", "true")
 
@@ -110,7 +110,7 @@ class TestAssinaturaEndpoints:
             json={"plataforma": "android", "token_compra": "token-falso"},
         )
 
-        assert response.status_code == 501
+        assert response.status_code == 503
 
         db.refresh(usuario_teste)
         assert not usuario_teste.assinatura_ativa

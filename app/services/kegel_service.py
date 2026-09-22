@@ -245,14 +245,16 @@ def registrar_conclusao_exercicio(db: Session, email: str, nivel: NivelKegel, ex
     agora = datetime.now()
 
     if progresso_existente:
-        # Atualizar registro existente se o percentual for maior
+        # Mantém o maior progresso já alcançado.
         if percentual > progresso_existente.percentual_conclusao:
             progresso_existente.percentual_conclusao = percentual
             progresso_existente.data_conclusao = agora
 
-            # Marcar como concluído se atingiu 100%
-            if percentual >= 100:
-                progresso_existente.concluido = 1
+        # A conclusão não pode depender de o novo percentual ser maior. Isso
+        # também corrige registros antigos que ficaram com 100%, mas concluido=0.
+        if percentual >= 100:
+            progresso_existente.concluido = 1
+            progresso_existente.data_conclusao = agora
     else:
         # Criar novo registro
         novo_progresso = ProgressoKegel(

@@ -24,3 +24,23 @@ def cobranca_ativa() -> bool:
     Lê a variável a cada chamada de propósito, para permitir alternar em testes.
     """
     return _flag("COBRANCA_ATIVA", padrao=False)
+
+
+def dias_de_trial() -> int:
+    """
+    Dias de teste grátis para uma conta nova.
+
+    Vale a partir da criação da conta; terminado o prazo, sem assinatura ativa,
+    o acesso é bloqueado - mas só quando COBRANCA_ATIVA estiver ligada, porque
+    no modo gratuito o fim do trial não tira o acesso de ninguém.
+
+    Lê a variável a cada chamada, para permitir alternar em testes.
+    """
+    valor = os.getenv("DIAS_TRIAL")
+    if valor is None:
+        return 3
+    try:
+        dias = int(valor.strip())
+    except ValueError:
+        return 3
+    return dias if dias > 0 else 3

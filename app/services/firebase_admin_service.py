@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 
 import firebase_admin
 from firebase_admin import credentials
@@ -12,14 +13,26 @@ def get_firebase_app() -> firebase_admin.App:
     if _FIREBASE_APP is not None:
         return _FIREBASE_APP
 
+    service_account_file = os.getenv("FIREBASE_SERVICE_ACCOUNT_FILE")
     service_account_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
-    if not service_account_json:
+
+    if service_account_file:
+        caminho = Path(service_account_file)
+        if not caminho.is_absolute():
+            caminho = Path(__file__).resolve().parents[2] / caminho
+        if not caminho.is_file():
+            raise RuntimeError(
+                f"Arquivo da conta de serviço do Firebase não encontrado: {caminho}"
+            )
+        cred = credentials.Certificate(str(caminho))
+    elif service_account_json:
+        cred = credentials.Certificate(json.loads(service_account_json))
+    else:
         raise RuntimeError(
-            "FIREBASE_SERVICE_ACCOUNT_JSON não configurada. Defina a variável de "
-            "ambiente com o conteúdo do JSON da service account (Firebase Console "
-            "-> Project Settings -> Service accounts -> Generate new private key)."
+            "Credencial Firebase não configurada. Defina FIREBASE_SERVICE_ACCOUNT_FILE "
+            "com o caminho do arquivo local ou FIREBASE_SERVICE_ACCOUNT_JSON com o "
+            "conteúdo do JSON da conta de serviço."
         )
 
-    cred = credentials.Certificate(json.loads(service_account_json))
     _FIREBASE_APP = firebase_admin.initialize_app(cred)
     return _FIREBASE_APP

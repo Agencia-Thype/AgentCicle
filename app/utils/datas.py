@@ -10,3 +10,8 @@ FUSO_BRASILIA = timezone(timedelta(hours=-3))
 
 def hoje_brasilia() -> date:
     return datetime.now(FUSO_BRASILIA).date()
+
+
+def agora_brasilia() -> datetime:
+    """Data e hora de Brasília, sem fuso, para comparar com horários "HH:MM" do app."""
+    return datetime.now(FUSO_BRASILIA).replace(tzinfo=None)

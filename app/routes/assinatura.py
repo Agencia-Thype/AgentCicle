@@ -6,7 +6,7 @@ import time
 from app.config import cobranca_ativa
 from app.db.database import get_db
 from app.services.auth_service import verificar_token
-from app.models.sqlalchemy_models import Usuario
+from app.models.sqlalchemy_models import CompraLoja, Usuario
 from app.services.assinatura_service import (
     verificar_status_usuario,
     ativar_assinatura,
@@ -137,10 +137,35 @@ def ativar_plano(
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
 
-    # Falha fechado enquanto a integração com as lojas não existir.
+    # Falha fechado: sem confirmação da loja, nada é ativado.
     compra = validar_compra(plataforma, token_compra)
 
+    # O mesmo recibo não pode virar premium em duas contas. Reenviar a própria
+    # compra é normal (o app reprocessa pendências), então só o dono repete.
+    ja_registrada = (
+        db.query(CompraLoja).filter(CompraLoja.id_transacao == compra.id_transacao).first()
+    )
+    if ja_registrada and ja_registrada.usuario_id != usuario.id:
+        log_warning(
+            "Recibo de outra conta recusado",
+            {"usuario_id": usuario.id, "transacao": compra.id_transacao},
+        )
+        raise HTTPException(status_code=409, detail="Esta compra já está vinculada a outra conta")
+
     resultado = ativar_assinatura(db, usuario.id, compra.duracao_meses)
+
+    if not ja_registrada:
+        db.add(CompraLoja(
+            usuario_id=usuario.id,
+            plataforma=compra.plataforma,
+            id_transacao=compra.id_transacao,
+            token_compra=token_compra,
+            product_id=compra.product_id,
+            duracao_meses=compra.duracao_meses,
+            expira_em=compra.expira_em,
+            created_at=datetime.now(),
+        ))
+        db.commit()
     log_info(
         "Assinatura ativada por compra validada",
         {"usuario_id": usuario.id, "plataforma": compra.plataforma, "transacao": compra.id_transacao},

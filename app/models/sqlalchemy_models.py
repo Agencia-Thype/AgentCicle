@@ -114,3 +114,91 @@ class KegelDiario(Base):
     exercicio_id = Column(String, nullable=False)
     pontos = Column(Integer, default=0)
     created_at = Column(DateTime)
+
+
+class ItemRotina(Base):
+    """
+    Suplemento, vitamina ou medicamento da rotina da usuária.
+
+    Excluir não apaga a linha: marca ativo=0 e encerra o item ontem, para o
+    histórico dos dias anteriores continuar contando as doses que eram previstas.
+    """
+    __tablename__ = "itens_rotina"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, index=True)
+    nome = Column(String, nullable=False)
+    categoria = Column(String, nullable=False)  # suplemento, medicamento, vitamina
+    dosagem = Column(String)
+    frequencia = Column(String, nullable=False, default="todos_os_dias")  # ou dias_especificos
+    # 0 = domingo ... 6 = sábado, a mesma convenção do app (Date.getDay).
+    dias_semana = Column(JSON)
+    horarios = Column(JSON, nullable=False)  # ["08:00", "21:00"]
+    data_inicio = Column(Date, nullable=False)
+    data_fim = Column(Date)
+    observacoes = Column(Text)
+    indicado_medico = Column(Integer, default=0)
+    lembrete_ativo = Column(Integer, default=1)
+    controle_estoque = Column(Integer, default=0)
+    estoque_atual = Column(Integer)
+    estoque_alerta = Column(Integer)
+    ativo = Column(Integer, default=1)
+    created_at = Column(DateTime)
+
+
+class DoseRotina(Base):
+    """Dose tomada: uma linha por item, dia e horário."""
+    __tablename__ = "doses_rotina"
+    __table_args__ = (
+        UniqueConstraint("item_id", "data", "horario", name="uq_dose_rotina_item_dia_horario"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, index=True)
+    item_id = Column(Integer, ForeignKey("itens_rotina.id"), nullable=False, index=True)
+    data = Column(Date, nullable=False)
+    horario = Column(String, nullable=False)
+    tomado_em = Column(DateTime)
+
+
+class AguaRegistro(Base):
+    """Cada copo registrado na hidratação do dia."""
+    __tablename__ = "agua_registros"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, index=True)
+    data = Column(Date, nullable=False, index=True)
+    ml = Column(Integer, nullable=False)
+    created_at = Column(DateTime)
+
+
+class ConfigHidratacao(Base):
+    """Meta e lembretes de água escolhidos pela usuária. Sem linha, vale a sugestão."""
+    __tablename__ = "config_hidratacao"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, unique=True, index=True)
+    meta_ml = Column(Integer)
+    lembretes = Column(JSON)  # ["09:00", "11:00"]
+    lembretes_ativos = Column(Integer, default=1)
+
+
+class CompraLoja(Base):
+    """
+    Compra confirmada pela App Store ou pela Google Play.
+
+    Guarda o id da transação para que o mesmo pagamento não ative premium em
+    duas contas: o recibo é de quem comprou, e o aparelho pode reenviá-lo.
+    """
+    __tablename__ = "compras_loja"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, index=True)
+    plataforma = Column(String, nullable=False)  # ios | android
+    id_transacao = Column(String, nullable=False, unique=True, index=True)
+    # Token que a loja manda nas notificações de renovação e cancelamento.
+    token_compra = Column(String, index=True)
+    product_id = Column(String, nullable=False)
+    duracao_meses = Column(Integer, nullable=False)
+    expira_em = Column(DateTime)
+    created_at = Column(DateTime)

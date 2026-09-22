@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from app.db.database import get_db
 from app.models.sqlalchemy_models import Usuario
 from app.schemas.usuario_schemas import AuthSyncRequest
+from app.config import dias_de_trial
 from app.services.auth_service import verificar_token, obter_uid_firebase
 
 router = APIRouter(tags=["Autenticação"])
@@ -51,7 +52,7 @@ def sincronizar_usuario(
         verificado=1,
         data_criacao=hoje,
         data_criacao_conta=hoje,
-        data_fim_trial=hoje + timedelta(days=7),
+        data_fim_trial=hoje + timedelta(days=dias_de_trial()),
     )
     db.add(usuario)
     db.commit()

@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from app.config import cobranca_ativa
+from app.config import cobranca_ativa, dias_de_trial
 from app.models.sqlalchemy_models import Usuario
 from app.utils.cache import get_from_cache, set_in_cache, invalidate_cache
 
@@ -126,14 +126,14 @@ def verificar_status_usuario(db: Session, usuario_id: int) -> dict:
     return status
 
 
-def ativar_trial(db: Session, usuario_id: int, dias: int = 7) -> dict:
+def ativar_trial(db: Session, usuario_id: int, dias: int | None = None) -> dict:
     """
     Ativa o trial de X dias para o usuário.
     
     Args:
         db: Sessão do banco de dados
         usuario_id: ID do usuário
-        dias: Número de dias do trial (padrão: 7)
+        dias: Número de dias do trial (padrão: o configurado em DIAS_TRIAL)
         
     Returns:
         dict: Status após ativação do trial
@@ -142,6 +142,9 @@ def ativar_trial(db: Session, usuario_id: int, dias: int = 7) -> dict:
     if not usuario:
         return {"sucesso": False, "erro": "Usuário não encontrado"}
     
+    if dias is None:
+        dias = dias_de_trial()
+
     agora = datetime.now()
     data_fim_trial = agora + timedelta(days=dias)
     

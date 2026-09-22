@@ -1,6 +1,8 @@
 from fastapi.testclient import TestClient
 
-from app.models.sqlalchemy_models import KegelDiario
+from datetime import datetime
+
+from app.models.sqlalchemy_models import KegelDiario, ProgressoKegel
 from app.services.kegel_service import PONTOS_KEGEL_DIA
 
 
@@ -32,6 +34,27 @@ class TestPontuacaoKegel:
         assert response.json()["pontos_ganhos"] == 0
         db.refresh(usuario_teste)
         assert usuario_teste.pontos_totais == 3
+
+    def test_conclusao_corrige_registro_antigo_com_cem_porcento(self, client: TestClient, headers_auth: dict, db, usuario_teste):
+        db.add(ProgressoKegel(
+            usuario_id=usuario_teste.id,
+            nivel="iniciante",
+            exercicio_id="kegel_ini_ex3",
+            data_conclusao=datetime.now(),
+            percentual_conclusao=100,
+            concluido=0,
+        ))
+        db.commit()
+
+        response = self._concluir(client, headers_auth, "kegel_ini_ex3")
+
+        assert response.status_code == 200
+        progresso = db.query(ProgressoKegel).filter(
+            ProgressoKegel.usuario_id == usuario_teste.id,
+            ProgressoKegel.exercicio_id == "kegel_ini_ex3",
+        ).one()
+        assert progresso.concluido == 1
+        assert response.json()["exercicios_concluidos"] == 1
 
     def test_nivel_completo_vale_o_dia_inteiro(self, client: TestClient, headers_auth: dict, db, usuario_teste):
         ganhos = [
