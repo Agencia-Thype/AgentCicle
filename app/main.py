@@ -1,4 +1,14 @@
 import os
+import sys
+
+# Os prints das rotas usam emoji. No servidor Windows, com a saída redirecionada
+# para log, o console é cp1252 e cada print desses lançava UnicodeEncodeError:
+# o check-in do treino era gravado (o print vem depois do commit) e mesmo assim
+# a rota respondia 500; o /perfil caía já no primeiro print.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 import logging
