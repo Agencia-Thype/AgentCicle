@@ -1,5 +1,8 @@
 import os
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+import logging
+import traceback
 from fastapi.middleware.cors import CORSMiddleware
 import time
 from app.routes import auth, ciclo, diario, fase_atual, ia_routes, perfil, pontuacao, relatorio, usuario
@@ -79,6 +82,25 @@ app.include_router(assinatura.router)
 app.include_router(kegel.router)
 app.include_router(rotina.router)
 app.include_router(notificacoes_loja.router)
+
+
+@app.exception_handler(Exception)
+async def erro_inesperado(request: Request, exc: Exception):
+    """
+    Erro não tratado: registra o traceback completo no log do servidor e
+    devolve JSON com `detail`. Sem isto o 500 vinha como texto puro, o app só
+    conseguia dizer "Erro ao salvar" e a causa real se perdia.
+    """
+    logging.getLogger("uvicorn.error").error(
+        "Erro não tratado em %s %s\n%s",
+        request.method,
+        request.url.path,
+        "".join(traceback.format_exception(exc)),
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Erro interno no servidor. Tente novamente em instantes."},
+    )
 
 
 @app.get("/health", tags=["Infra"])

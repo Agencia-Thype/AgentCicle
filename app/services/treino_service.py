@@ -42,9 +42,13 @@ def obter_tipos_treino_disponiveis(db: Session, fase: str) -> list[str]:
         return []
 
     try:
-        resultados = db.execute(
-            text(f"SELECT DISTINCT tipo_treino FROM {nome_tabela} WHERE tipo_treino IS NOT NULL")
-        ).scalars()
+        # Savepoint: no Postgres uma consulta que falha aborta a transação
+        # inteira, e o check-in do treino (que roda na mesma sessão) cairia com
+        # 500 logo depois. Assim só esta consulta é desfeita.
+        with db.begin_nested():
+            resultados = db.execute(
+                text(f"SELECT DISTINCT tipo_treino FROM {nome_tabela} WHERE tipo_treino IS NOT NULL")
+            ).scalars().all()
     except SQLAlchemyError:
         # Mantém os testes/bancos antigos funcionais enquanto ainda não possuem
         # as tabelas de catálogo. Em produção elas sempre existem.
