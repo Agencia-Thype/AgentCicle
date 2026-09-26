@@ -5,27 +5,40 @@ from app.models.conversaIA_models import ConversaIA
 from app.services.llm_service import gerar_resposta_ia
 from sqlalchemy import text
 import json
+from app.services.treino_service import definir_treino_do_dia, TABELA_POR_FASE
 
-def buscar_treinos_por_fase(db: Session, fase: str):
-    tabela_por_fase = {
-        "Menstruação": "fase_1_menstruacao",
-        "Folicular": "fase_2_folicular",
-        "Ovulatória": "fase_3_ovulatoria",
-        "Lútea": "fase_4_tpm",
-    }
-
-    nome_tabela = tabela_por_fase.get(fase)
+def buscar_treinos_por_fase(db: Session, fase: str, tipo_treino: str | None = None):
+    nome_tabela = TABELA_POR_FASE.get(fase)
     if not nome_tabela:
         return []
 
-    query = text(f"SELECT exercicio, tipo_treino FROM {nome_tabela}")
-    resultados = db.execute(query).fetchall()
+    if tipo_treino:
+        tipo = tipo_treino.strip().upper()
+        query = text(f"""
+            SELECT exercicio, tipo_treino FROM {nome_tabela}
+            WHERE UPPER(TRIM(tipo_treino)) = :tipo
+               OR UPPER(TRIM(tipo_treino)) LIKE :tipo_descritivo
+               OR UPPER(TRIM(tipo_treino)) LIKE :tipo_barra
+            ORDER BY exercicio
+        """)
+        resultados = db.execute(
+            query,
+            {
+                "tipo": tipo,
+                "tipo_descritivo": f"TREINO {tipo} -%",
+                "tipo_barra": f"TREINO {tipo}/%",
+            },
+        ).fetchall()
+    else:
+        query = text(f"SELECT exercicio, tipo_treino FROM {nome_tabela} ORDER BY exercicio")
+        resultados = db.execute(query).fetchall()
     return [dict(row._mapping) for row in resultados]
 
 
 def responder_com_RAG(db: Session, user_id: int, pergunta: str, contexto: dict) -> str:
     fase = contexto.get("fase_atual", "fase desconhecida")
-    exercicios = buscar_treinos_por_fase(db, fase)
+    tipo_treino = definir_treino_do_dia(db, user_id, fase)
+    exercicios = buscar_treinos_por_fase(db, fase, tipo_treino)
 
     lista_exercicios = "\n".join([
         f"- {ex['exercicio']}" for ex in exercicios

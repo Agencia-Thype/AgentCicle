@@ -37,7 +37,13 @@ def get_perfil(
     # Buscar histórico de peso (últimos 5 registros)
     historico = (
         db.query(HistoricoPeso)
-        .filter(HistoricoPeso.user_id == usuario.id)
+        .filter(
+            HistoricoPeso.user_id == usuario.id,
+            # Registros legados podem ter sido gravados parcialmente. Eles não
+            # devem derrubar todo o perfil ao tentar executar float(None).
+            HistoricoPeso.peso.isnot(None),
+            HistoricoPeso.data_registro.isnot(None),
+        )
         .order_by(HistoricoPeso.data_registro.desc())
         .limit(5)
         .all()

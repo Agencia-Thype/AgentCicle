@@ -1,5 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
+from app.routes.pontuacao import calcular_classe_lunar
 
 
 class TestPontuacaoEndpoints:
@@ -52,3 +53,33 @@ class TestPontuacaoEndpointsIntegracao:
         data2 = response2.json()
 
         assert type(data1) == type(data2)
+
+
+@pytest.mark.parametrize(
+    "pontos,classe,proxima,restantes",
+    [
+        (0, "Lua Nova", 120, 120),
+        (119, "Lua Nova", 120, 1),
+        (120, "Lua Crescente", 240, 120),
+        (240, "Lua Cheia", 360, 120),
+        (360, "Lua Minguante", None, 0),
+        (999, "Lua Minguante", None, 0),
+    ],
+)
+def test_classe_lunar_e_calculada_pelos_pontos(pontos, classe, proxima, restantes):
+    resultado = calcular_classe_lunar(pontos)
+    assert resultado["classe"] == classe
+    assert resultado["proxima_pontuacao"] == proxima
+    assert resultado["pontos_para_proxima"] == restantes
+
+
+def test_endpoint_retorna_meta_da_classe(client, headers_auth, db, usuario_teste):
+    usuario_teste.pontos_totais = 125
+    db.commit()
+
+    response = client.get("/pontuacao", headers=headers_auth)
+
+    assert response.status_code == 200
+    assert response.json()["classe"] == "Lua Crescente"
+    assert response.json()["proxima_pontuacao"] == 240
+    assert response.json()["pontos_para_proxima"] == 115

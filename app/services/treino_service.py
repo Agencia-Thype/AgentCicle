@@ -1,11 +1,57 @@
 from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from app.models.sqlalchemy_models import Usuario, TreinoRealizado
 from app.services.ciclo_service import calcular_fase_do_ciclo
 from app.utils.datas import hoje_brasilia
 
 SEQUENCIA_TREINOS = ["A", "B", "C", "D", "E"]
+
+TABELA_POR_FASE = {
+    "Menstruação": "fase_1_menstruacao",
+    "Folicular": "fase_2_folicular",
+    "Ovulatória": "fase_3_ovulatoria",
+    "Lútea": "fase_4_tpm",
+    # Versões sem acento para compatibilidade com dados legados.
+    "Menstruacao": "fase_1_menstruacao",
+    "Ovulatoria": "fase_3_ovulatoria",
+    "Lutea": "fase_4_tpm",
+}
+
+
+def _letra_tipo_treino(tipo_treino: str | None) -> str | None:
+    """Extrai A-E tanto de ``B`` quanto de ``TREINO B - ...``."""
+    if not tipo_treino:
+        return None
+
+    valor = tipo_treino.strip().upper()
+    if valor in SEQUENCIA_TREINOS:
+        return valor
+    if valor.startswith("TREINO ") and len(valor) > 7:
+        letra = valor[7]
+        if letra in SEQUENCIA_TREINOS:
+            return letra
+    return None
+
+
+def obter_tipos_treino_disponiveis(db: Session, fase: str) -> list[str]:
+    """Retorna somente as letras de treino que realmente existem na fase."""
+    nome_tabela = TABELA_POR_FASE.get(fase)
+    if not nome_tabela:
+        return []
+
+    try:
+        resultados = db.execute(
+            text(f"SELECT DISTINCT tipo_treino FROM {nome_tabela} WHERE tipo_treino IS NOT NULL")
+        ).scalars()
+    except SQLAlchemyError:
+        # Mantém os testes/bancos antigos funcionais enquanto ainda não possuem
+        # as tabelas de catálogo. Em produção elas sempre existem.
+        return []
+
+    encontrados = {_letra_tipo_treino(tipo) for tipo in resultados}
+    return [tipo for tipo in SEQUENCIA_TREINOS if tipo in encontrados]
 
 
 def definir_treino_do_dia(db: Session, usuario_id: int, fase: str) -> str:
@@ -32,11 +78,13 @@ def definir_treino_do_dia(db: Session, usuario_id: int, fase: str) -> str:
         .order_by(TreinoRealizado.data.desc(), TreinoRealizado.id.desc())
         .first()
     )
-    if not ultimo or ultimo.treino not in SEQUENCIA_TREINOS:
-        return SEQUENCIA_TREINOS[0]
+    tipos_disponiveis = obter_tipos_treino_disponiveis(db, fase) or SEQUENCIA_TREINOS
 
-    idx = SEQUENCIA_TREINOS.index(ultimo.treino)
-    return SEQUENCIA_TREINOS[(idx + 1) % len(SEQUENCIA_TREINOS)]
+    if not ultimo or ultimo.treino not in tipos_disponiveis:
+        return tipos_disponiveis[0]
+
+    idx = tipos_disponiveis.index(ultimo.treino)
+    return tipos_disponiveis[(idx + 1) % len(tipos_disponiveis)]
 
 
 def calcular_percentual_por_fase(db: Session, user_id: int, fase: str, data_base: date) -> float:
@@ -53,6 +101,26 @@ def calcular_percentual_por_fase(db: Session, user_id: int, fase: str, data_base
     return round(
         sum(float(t.percentual_concluido or 0) for t in treinos) / len(treinos), 1
     )
+
+
+def buscar_exercicios_por_tipo(db: Session, nome_tabela: str, tipo_treino: str):
+    """Busca somente o grupo A-E solicitado, independentemente do texto descritivo."""
+    tipo = tipo_treino.strip().upper()
+    query = text(f"""
+        SELECT * FROM {nome_tabela}
+        WHERE UPPER(TRIM(tipo_treino)) = :tipo
+           OR UPPER(TRIM(tipo_treino)) LIKE :tipo_descritivo
+           OR UPPER(TRIM(tipo_treino)) LIKE :tipo_barra
+        ORDER BY exercicio
+    """)
+    return db.execute(
+        query,
+        {
+            "tipo": tipo,
+            "tipo_descritivo": f"TREINO {tipo} -%",
+            "tipo_barra": f"TREINO {tipo}/%",
+        },
+    ).fetchall()
 
 def obter_treino_por_fase(email: str, db: Session):
     usuario = db.query(Usuario).filter(Usuario.email == email).first()
@@ -71,30 +139,15 @@ def obter_treino_por_fase(email: str, db: Session):
     print(f"DEBUG: Fase calculada: '{fase}'")
     proximo_treino = definir_treino_do_dia(db, usuario.id, fase)
 
-    tabela_por_fase = {
-        "Menstruação": "fase_1_menstruacao",
-        "Folicular": "fase_2_folicular",
-        "Ovulatória": "fase_3_ovulatoria",
-        "Lútea": "fase_4_tpm",
-        # Adicionando versões sem acento para garantir compatibilidade
-        "Menstruacao": "fase_1_menstruacao",
-        "Ovulatoria": "fase_3_ovulatoria",
-        "Lutea": "fase_4_tpm",
-    }
-    
-    nome_tabela = tabela_por_fase.get(fase)
+    nome_tabela = TABELA_POR_FASE.get(fase)
     print(f"DEBUG: Fase: '{fase}', Tabela mapeada: '{nome_tabela}'")
     if not nome_tabela:
         return {"erro": f"Tabela não encontrada para a fase '{fase}'"}
 
-    # Consulta flexível: buscar por tipo_treino usando ILIKE e busca parcial
-    query = text(f"""
-        SELECT * FROM {nome_tabela}
-        WHERE tipo_treino ILIKE :tipo
-        ORDER BY exercicio
-    """)
+    # Aceita os dois formatos existentes no banco ("B" e "TREINO B - ..."),
+    # sem confundir a letra com palavras como "body" ou "membros".
     try:
-        resultados = db.execute(query, {"tipo": f"%{proximo_treino}%"}).fetchall()
+        resultados = buscar_exercicios_por_tipo(db, nome_tabela, proximo_treino)
         print(f"DEBUG: Número de resultados obtidos: {len(resultados)}")
         if resultados:
             primeiro_resultado = dict(resultados[0]._mapping)

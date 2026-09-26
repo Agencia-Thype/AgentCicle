@@ -313,14 +313,23 @@ def progresso_semanal(
             soma += progresso
 
     if dias_com_treino_esperado == 0:
-        return {"media_percentual": 0}
+        return {"media_percentual": 0, "dias_concluidos": []}
 
     media = soma / dias_com_treino_esperado
 
     print("📅 Treinos por data:", treinos_por_data)
     print(f"✅ Soma: {soma} | Dias com treino esperado: {dias_com_treino_esperado} | Média: {media:.1f}%")
 
-    return {"media_percentual": round(media, 1)}
+    dias_concluidos = sorted(
+        dia.isoformat()
+        for dia, percentual in treinos_por_data.items()
+        if percentual > 0
+    )
+
+    return {
+        "media_percentual": round(media, 1),
+        "dias_concluidos": dias_concluidos,
+    }
 
 
 @router.get("/diagnostico")

@@ -1,9 +1,14 @@
 import pytest
 from datetime import timedelta
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 
 from app.models.sqlalchemy_models import TreinoRealizado
-from app.services.treino_service import definir_treino_do_dia
+from app.services.treino_service import (
+    buscar_exercicios_por_tipo,
+    definir_treino_do_dia,
+    obter_tipos_treino_disponiveis,
+)
 from app.utils.datas import hoje_brasilia
 
 
@@ -168,3 +173,104 @@ class TestTreinoDoDia:
         self._registrar(db, usuario_teste.id, hoje_brasilia(), "Lútea", "C")
 
         assert definir_treino_do_dia(db, usuario_teste.id, "Folicular") == "C"
+
+
+class TestProgressoSemanal:
+    def test_retorna_somente_dias_com_treino_feito(self, client, headers_auth, db, usuario_teste):
+        hoje = hoje_brasilia()
+        db.add_all([
+            TreinoRealizado(usuario_id=usuario_teste.id, data=hoje, fase="Folicular", treino="A", percentual_concluido=50, pontos=10),
+            TreinoRealizado(usuario_id=usuario_teste.id, data=hoje - timedelta(days=1), fase="Folicular", treino="B", percentual_concluido=0, pontos=0),
+        ])
+        db.commit()
+
+        response = client.get(
+            "/treino-dia/progresso-semanal",
+            headers=headers_auth,
+            params={"inicio": (hoje - timedelta(days=6)).isoformat(), "fim": hoje.isoformat()},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["dias_concluidos"] == [hoje.isoformat()]
+
+    def test_sem_treino_nao_retorna_dia_concluido(self, client, headers_auth):
+        hoje = hoje_brasilia()
+        response = client.get(
+            "/treino-dia/progresso-semanal",
+            headers=headers_auth,
+            params={"inicio": (hoje - timedelta(days=6)).isoformat(), "fim": hoje.isoformat()},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["dias_concluidos"] == []
+
+
+class TestFiltroCatalogoTreino:
+    @staticmethod
+    def _criar_catalogo_luteo(db):
+        db.execute(text("DROP TABLE IF EXISTS fase_4_tpm"))
+        db.execute(text("""
+            CREATE TABLE fase_4_tpm (
+                fase TEXT,
+                tipo_treino TEXT,
+                exercicio TEXT
+            )
+        """))
+        linhas = [
+            ("LÚTEA/TPM", "TREINO A - full body", f"Exercício A{i}")
+            for i in range(1, 8)
+        ] + [
+            ("LÚTEA/TPM", "TREINO B - back day", nome)
+            for nome in (
+                "Pull Down/Tríceps Corda/Face Pull",
+                "Stiff",
+                "Banco Romano",
+                "Elevação Pélvica",
+                "Remada Baixa triângulo",
+                "Leg Press/Panturrilha",
+            )
+        ] + [
+            ("Tpm", "TREINO C - cardio", "HIIT Esteira"),
+            ("Tpm", "TREINO C - cardio", "Escada contínua"),
+        ]
+        db.execute(
+            text("INSERT INTO fase_4_tpm (fase, tipo_treino, exercicio) VALUES (:fase, :tipo, :exercicio)"),
+            [{"fase": fase, "tipo": tipo, "exercicio": exercicio} for fase, tipo, exercicio in linhas],
+        )
+        db.commit()
+
+    def test_b_nao_se_confunde_com_full_body(self, db):
+        self._criar_catalogo_luteo(db)
+
+        resultados = buscar_exercicios_por_tipo(db, "fase_4_tpm", "B")
+        nomes = [row._mapping["exercicio"] for row in resultados]
+
+        assert len(nomes) == 6
+        assert nomes == sorted([
+            "Pull Down/Tríceps Corda/Face Pull",
+            "Stiff",
+            "Banco Romano",
+            "Elevação Pélvica",
+            "Remada Baixa triângulo",
+            "Leg Press/Panturrilha",
+        ])
+        assert all(row._mapping["tipo_treino"] == "TREINO B - back day" for row in resultados)
+
+    def test_tipos_disponiveis_sao_extraidos_do_catalogo(self, db):
+        self._criar_catalogo_luteo(db)
+
+        assert obter_tipos_treino_disponiveis(db, "Lútea") == ["A", "B", "C"]
+
+    def test_depois_do_c_volta_ao_a_quando_nao_existem_d_e(self, db, usuario_teste):
+        self._criar_catalogo_luteo(db)
+        db.add(TreinoRealizado(
+            usuario_id=usuario_teste.id,
+            data=hoje_brasilia() - timedelta(days=1),
+            fase="Lútea",
+            treino="C",
+            percentual_concluido=100,
+            pontos=20,
+        ))
+        db.commit()
+
+        assert definir_treino_do_dia(db, usuario_teste.id, "Lútea") == "A"
