@@ -77,3 +77,21 @@ class TestGetMe:
         response = client.get("/me", headers=headers)
 
         assert response.status_code == 401
+
+    def test_falha_interna_na_validacao_nao_e_401(self, client: TestClient, monkeypatch):
+        """
+        Falha do servidor ao validar (ex.: sem acesso aos certificados do
+        Google) não pode virar 401: no app, 401 desloga a usuária.
+        """
+        from firebase_admin import auth as firebase_auth
+
+        monkeypatch.setattr("app.services.auth_service.get_firebase_app", lambda: None)
+
+        def _raise_rede(token):
+            raise RuntimeError("sem rede para buscar certificados")
+
+        monkeypatch.setattr(firebase_auth, "verify_id_token", _raise_rede)
+
+        response = client.get("/me", headers={"Authorization": "Bearer token_qualquer"})
+
+        assert response.status_code == 503

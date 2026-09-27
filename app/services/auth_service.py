@@ -46,7 +46,11 @@ def verificar_token(token: str = Depends(oauth2_scheme)) -> str:
     except firebase_auth.InvalidIdTokenError:
         raise HTTPException(status_code=401, detail="Token inválido")
     except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Erro ao validar token: {str(e)}")
+        # Falha nossa (ex.: sem acesso aos certificados do Google), não do token.
+        # 401 aqui fazia o app deslogar a usuária por um problema passageiro.
+        raise HTTPException(
+            status_code=503, detail=f"Não foi possível validar a sessão agora: {str(e)}"
+        )
 
     email = decoded.get("email")
     if not email:
