@@ -55,6 +55,22 @@ class TestExclusaoDeConta:
         assert db.query(HistoricoPeso).filter(HistoricoPeso.user_id == usuario_id).count() == 0
         assert db.query(TreinoRealizado).filter(TreinoRealizado.usuario_id == usuario_id).count() == 0
 
+    def test_lista_cobre_toda_tabela_ligada_a_usuaria(self):
+        """
+        Tabela nova com FK para usuarios e fora da lista quebra a exclusão com
+        500 (foi o que aconteceu com as da Rotina e da loja).
+        """
+        from app.db.database import Base
+        from app.routes.usuario import TABELAS_DEPENDENTES
+
+        ligadas = {
+            (tabela.name, fk.parent.name)
+            for tabela in Base.metadata.tables.values()
+            for fk in tabela.foreign_keys
+            if fk.column.table.name == "usuarios"
+        }
+        assert ligadas <= set(TABELAS_DEPENDENTES)
+
     def test_falha_no_firebase_nao_impede_exclusao_local(
         self, client: TestClient, db: Session, usuario_teste, headers_auth, monkeypatch
     ):

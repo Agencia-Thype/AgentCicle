@@ -12,6 +12,12 @@ router = APIRouter(tags=["Usuário"])
 # Tabelas que referenciam usuarios.id. Nem todas têm ON DELETE CASCADE no banco,
 # então a remoção é feita explicitamente aqui, na ordem filho -> pai.
 TABELAS_DEPENDENTES = (
+    # doses_rotina referencia itens_rotina: tem de sair antes dos itens.
+    ("doses_rotina", "usuario_id"),
+    ("itens_rotina", "usuario_id"),
+    ("agua_registros", "usuario_id"),
+    ("config_hidratacao", "usuario_id"),
+    ("compras_loja", "usuario_id"),
     ("ia_historico_mensagens", "user_id"),
     ("conversas_ia", "user_id"),
     ("diario_ciclo", "user_id"),
