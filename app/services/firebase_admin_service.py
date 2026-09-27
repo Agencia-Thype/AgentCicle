@@ -34,5 +34,10 @@ def get_firebase_app() -> firebase_admin.App:
             "conteúdo do JSON da conta de serviço."
         )
 
-    _FIREBASE_APP = firebase_admin.initialize_app(cred)
+    # Sem isto a SDK espera até 120 s (com novas tentativas) por resposta do
+    # Google: a exclusão de conta estourava o timeout do app e a usuária via
+    # erro mesmo com a conta já apagada.
+    _FIREBASE_APP = firebase_admin.initialize_app(
+        cred, {"httpTimeout": int(os.getenv("FIREBASE_HTTP_TIMEOUT_SECONDS", "10"))}
+    )
     return _FIREBASE_APP

@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+import time
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -30,6 +32,7 @@ TABELAS_DEPENDENTES = (
 
 @router.delete("/usuario/me")
 def excluir_minha_conta(
+    tarefas: BackgroundTasks,
     db: Session = Depends(get_db),
     email: str = Depends(verificar_token),
 ):
@@ -46,6 +49,7 @@ def excluir_minha_conta(
 
     usuario_id = usuario.id
     removidos = {}
+    inicio = time.perf_counter()
 
     try:
         for tabela, coluna in TABELAS_DEPENDENTES:
@@ -64,15 +68,39 @@ def excluir_minha_conta(
             status_code=500, detail="Não foi possível excluir a conta. Tente novamente."
         )
 
+    tempo_banco_ms = round((time.perf_counter() - inicio) * 1000)
+
     # O registro no banco já foi removido; se o Firebase falhar, a conta local
-    # não volta a existir - apenas registramos para limpeza posterior.
+    # não volta a existir. Uma nova tentativa roda depois da resposta, para o
+    # app não ficar esperando o Google.
+    inicio_firebase = time.perf_counter()
     try:
         excluir_usuario_firebase(email)
     except Exception as e:
         log_warning(
-            f"Conta {email} removida do banco, mas não do Firebase", {"erro": str(e)}
+            f"Conta {email} removida do banco, mas não do Firebase; tentando de novo",
+            {"erro": str(e)},
         )
+        tarefas.add_task(_tentar_excluir_do_firebase_de_novo, email)
 
-    log_info(f"Conta excluída a pedido da usuária", {"usuario_id": usuario_id, "registros": removidos})
+    log_info(
+        "Conta excluída a pedido da usuária",
+        {
+            "usuario_id": usuario_id,
+            "registros": removidos,
+            "tempo_banco_ms": tempo_banco_ms,
+            "tempo_firebase_ms": round((time.perf_counter() - inicio_firebase) * 1000),
+        },
+    )
 
     return {"mensagem": "Conta e dados excluídos permanentemente."}
+
+
+def _tentar_excluir_do_firebase_de_novo(email: str) -> None:
+    try:
+        excluir_usuario_firebase(email)
+        log_info(f"Conta {email} removida do Firebase na segunda tentativa")
+    except Exception as e:
+        log_warning(
+            f"Conta {email} continua no Firebase; remover manualmente", {"erro": str(e)}
+        )
