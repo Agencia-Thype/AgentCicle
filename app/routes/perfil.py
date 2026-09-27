@@ -6,6 +6,8 @@ from app.services.auth_service import verificar_token
 from app.db.database import get_db
 from app.models.sqlalchemy_models import Usuario, HistoricoPeso
 import io
+import matplotlib
+matplotlib.use("Agg")  # sem GUI: rota roda fora da thread principal
 import matplotlib.pyplot as plt
 from fastapi.responses import StreamingResponse
 from app.utils.acesso import verificar_acesso

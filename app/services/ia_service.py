@@ -113,16 +113,16 @@ def _mensagem_entrada_local(contexto: dict, tipo: str) -> str:
     if tipo == "balao":
         if percentual_atual:
             return "Vamos manter seu ritmo hoje?"
-        return "Como voce esta se sentindo hoje?"
+        return "Como você está se sentindo hoje?"
 
     if percentual_atual:
         return (
-            f"Bem-vinda a sua fase {fase_atual}. "
-            f"Voce ja concluiu {percentual_atual}% dos treinos desta fase; siga no seu ritmo."
+            f"Bem-vinda à sua fase {fase_atual}. "
+            f"Você já concluiu {percentual_atual}% dos treinos desta fase; siga no seu ritmo."
         )
     return (
-        f"Bem-vinda a sua fase {fase_atual}. "
-        "Hoje pode comecar leve: um passo pequeno ja conta."
+        f"Bem-vinda à sua fase {fase_atual}. "
+        "Hoje pode começar leve: um passo pequeno já conta."
     )
 
 
