@@ -15,6 +15,7 @@ import logging
 import traceback
 from fastapi.middleware.cors import CORSMiddleware
 import time
+import uuid
 from app.routes import auth, ciclo, diario, fase_atual, ia_routes, perfil, pontuacao, relatorio, usuario
 from app.routes import treino, assinatura, kegel, rotina, notificacoes_loja
 from dotenv import load_dotenv
@@ -59,6 +60,7 @@ app.add_middleware(
 async def log_requests_middleware(request: Request, call_next):
     # Registra o início da requisição
     route = request.url.path
+    request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
     start_time = time.time()
     
     # Processa a requisição
@@ -72,8 +74,11 @@ async def log_requests_middleware(request: Request, call_next):
         request=request, 
         route=route, 
         status_code=response.status_code,
-        duration_ms=duration_ms
+        duration_ms=duration_ms,
+        request_id=request_id,
     )
+    response.headers["X-Request-ID"] = request_id
+    response.headers["X-Process-Time-Ms"] = f"{duration_ms:.1f}"
     
     return response
 

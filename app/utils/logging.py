@@ -41,7 +41,13 @@ def _get_caller_info():
         "function": caller.function
     }
 
-def log_request(request, route: str, status_code: int, duration_ms: Optional[float] = None):
+def log_request(
+    request,
+    route: str,
+    status_code: int,
+    duration_ms: Optional[float] = None,
+    request_id: Optional[str] = None,
+):
     """
     Registra informações sobre uma requisição HTTP.
     
@@ -69,15 +75,20 @@ def log_request(request, route: str, status_code: int, duration_ms: Optional[flo
             "route": route,
             "method": request.method,
             "path": request.url.path,
+            "query": str(request.url.query),
             "client": f"{client_host}:{client_port}",
             "status_code": status_code,
+            "request_id": request_id,
             "headers": headers
         }
         
         if duration_ms is not None:
             log_data["duration_ms"] = duration_ms
             
-        logger.info(f"REQUEST: {json.dumps(log_data)}")
+        if duration_ms is not None and duration_ms >= 1500:
+            logger.warning(f"SLOW_REQUEST: {json.dumps(log_data)}")
+        else:
+            logger.info(f"REQUEST: {json.dumps(log_data)}")
     except Exception as e:
         logger.error(f"Erro ao registrar log de requisição: {str(e)}")
 

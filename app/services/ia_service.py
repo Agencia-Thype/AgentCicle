@@ -1,11 +1,13 @@
 from sqlalchemy.orm import Session
 from datetime import datetime
+import os
 from app.models.sqlalchemy_models import Usuario
 from app.models.conversaIA_models import ConversaIA
 from app.services.llm_service import gerar_resposta_ia
 from sqlalchemy import text
 import json
 from app.services.treino_service import definir_treino_do_dia, TABELA_POR_FASE
+from app.utils.cache import get_from_cache, set_in_cache
 
 def buscar_treinos_por_fase(db: Session, fase: str, tipo_treino: str | None = None):
     nome_tabela = TABELA_POR_FASE.get(fase)
@@ -104,7 +106,48 @@ def buscar_historico_conversas(db: Session, user_id: int, limite: int = 5):
         .limit(limite).all()
 
 
+def _mensagem_entrada_local(contexto: dict, tipo: str) -> str:
+    fase_atual = contexto.get("fase_atual") or "atual"
+    percentual_atual = contexto.get("percentual_atual", 0)
+
+    if tipo == "balao":
+        if percentual_atual:
+            return "Vamos manter seu ritmo hoje?"
+        return "Como voce esta se sentindo hoje?"
+
+    if percentual_atual:
+        return (
+            f"Bem-vinda a sua fase {fase_atual}. "
+            f"Voce ja concluiu {percentual_atual}% dos treinos desta fase; siga no seu ritmo."
+        )
+    return (
+        f"Bem-vinda a sua fase {fase_atual}. "
+        "Hoje pode comecar leve: um passo pequeno ja conta."
+    )
+
+
 def gerar_mensagem_entrada_com_ia(db: Session, user_id: int, contexto: dict, tipo: str = "boas_vindas") -> str:
+    cache_key = (
+        f"ia_mensagem_entrada:{user_id}:{tipo}:"
+        f"{contexto.get('fase_atual')}:{contexto.get('percentual_atual')}:{contexto.get('percentual_anterior')}"
+    )
+    cached = get_from_cache(cache_key)
+    if cached:
+        return cached
+
+    cache_seconds = int(os.getenv("IA_MENSAGEM_ENTRADA_CACHE_SECONDS", "21600"))
+    live_enabled = os.getenv("IA_MENSAGEM_ENTRADA_LIVE", "false").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+        "sim",
+    )
+    if not live_enabled:
+        mensagem = _mensagem_entrada_local(contexto, tipo)
+        set_in_cache(cache_key, mensagem, cache_seconds)
+        return mensagem
+
     fase_atual = contexto.get("fase_atual")
     percentual_atual = contexto.get("percentual_atual", 0)
     percentual_anterior = contexto.get("percentual_anterior", 0)
@@ -131,7 +174,9 @@ Com base nisso, escreva uma **mensagem de boas-vindas curta e motivacional**.
 - Use emojis com leveza.
 - Limite: **até 3 linhas**.
 """
-        return gerar_resposta_ia(prompt, contexto)
+        resposta = gerar_resposta_ia(prompt, contexto)
+        set_in_cache(cache_key, resposta, cache_seconds)
+        return resposta
 
     elif tipo == "balao":
         prompt = f"""
@@ -153,7 +198,9 @@ Exemplos:
 - Seja breve e gentil.
 - Pode usar emojis se fizer sentido.
 """
-        return gerar_resposta_ia(prompt, contexto)
+        resposta = gerar_resposta_ia(prompt, contexto)
+        set_in_cache(cache_key, resposta, cache_seconds)
+        return resposta
 
     else:
         return "🌙 Estou me ajustando para te dar a melhor mensagem. Tente novamente!"

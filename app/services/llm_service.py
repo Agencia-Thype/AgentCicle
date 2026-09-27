@@ -16,8 +16,11 @@ if not api_key:
 
 client = OpenAI(
     api_key=api_key,
-    organization=os.getenv("OPENAI_ORG_ID")
+    organization=os.getenv("OPENAI_ORG_ID"),
+    timeout=float(os.getenv("OPENAI_TIMEOUT_SECONDS", "8")),
 )
+
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 def formatar_historico_conversas(historico: list) -> str:
     if not historico:
@@ -75,7 +78,7 @@ Responda como uma coach emocionalmente inteligente, com foco no bem-estar integr
             return "Estou temporariamente indisponível. Por favor, tente novamente em alguns minutos 🌸"
         
         response = client.chat.completions.create(
-            model="gpt-4-turbo",
+            model=OPENAI_MODEL,
             messages=[
                 {"role": "system", "content": "Você é uma assistente especialista em treinos e saúde do ciclo menstrual. Seu tom é empático, acolhedor e motivacional."},
                 {"role": "user", "content": prompt},
