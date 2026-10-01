@@ -26,7 +26,9 @@ def detalhes_fase_atual(
         raise HTTPException(status_code=404, detail="Usuária não encontrada ou sem menstruação registrada")
 
     hoje = date.today()
-    fase_info = calcular_fase_do_ciclo(str(usuario.data_menstruacao), usuario.duracao_ciclo)
+    fase_info = calcular_fase_do_ciclo(
+        str(usuario.data_menstruacao), usuario.duracao_ciclo, duracao_menstruacao=usuario.duracao_menstruacao
+    )
     fase_atual = fase_info["fase"]
     fase_chave = MAPEAMENTO_FASES.get(fase_atual)
 
@@ -63,6 +65,7 @@ def detalhes_fase_atual(
         "duracao_ciclo": fase_info.get("duracao_ciclo"),
         "proxima_fase": fase_info.get("proxima_fase"),
         "dias_para_proxima_fase": fase_info.get("dias_para_proxima_fase"),
+        "em_janela_fertil": fase_info.get("em_janela_fertil"),
         "percentual_atual": percentual_atual,
         "percentual_anterior": percentual_anterior,
         "sentimentos_anteriores": list(sentimentos)

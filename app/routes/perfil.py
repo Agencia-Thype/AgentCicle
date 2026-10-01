@@ -5,6 +5,7 @@ from app.schemas.usuario_schemas import AtualizarPerfil, PerfilUsuario, Atualiza
 from app.services.auth_service import verificar_token
 from app.db.database import get_db
 from app.models.sqlalchemy_models import Usuario, HistoricoPeso
+from app.services.ciclo_service import DURACAO_MENSTRUACAO_PADRAO
 import io
 import matplotlib
 matplotlib.use("Agg")  # sem GUI: rota roda fora da thread principal
@@ -68,6 +69,7 @@ def get_perfil(
         objetivo=usuario.objetivo,
         data_menstruacao=usuario.data_menstruacao,
         duracao_ciclo=usuario.duracao_ciclo,
+        duracao_menstruacao=usuario.duracao_menstruacao or DURACAO_MENSTRUACAO_PADRAO,
         imc=imc,
         historico_peso=historico_formatado
     )
@@ -151,11 +153,15 @@ async def atualizar_perfil(
             from app.services.ciclo_service import calcular_fase_do_ciclo
             fase_atualizada = calcular_fase_do_ciclo(
                 str(perfil.data_menstruacao), 
-                perfil.duracao_ciclo or usuario.duracao_ciclo or 28
+                perfil.duracao_ciclo or usuario.duracao_ciclo or 28,
+                duracao_menstruacao=perfil.duracao_menstruacao or usuario.duracao_menstruacao,
             )
 
     if perfil.duracao_ciclo is not None:
         usuario.duracao_ciclo = perfil.duracao_ciclo
+
+    if perfil.duracao_menstruacao is not None:
+        usuario.duracao_menstruacao = perfil.duracao_menstruacao
         
     db.commit()
     
@@ -252,7 +258,9 @@ async def sincronizar_fase_apos_atualizacao(
             )
     
     # Calcular a fase atual com a data atualizada
-    fase_info = calcular_fase_do_ciclo(str(usuario.data_menstruacao), usuario.duracao_ciclo or 28)
+    fase_info = calcular_fase_do_ciclo(
+        str(usuario.data_menstruacao), usuario.duracao_ciclo, duracao_menstruacao=usuario.duracao_menstruacao
+    )
     
     return {
         "mensagem": "Fase sincronizada com sucesso",

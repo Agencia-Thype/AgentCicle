@@ -16,6 +16,7 @@ class Usuario(Base):
     data_criacao = Column(Date)
     data_menstruacao = Column(Date)
     duracao_ciclo = Column(Integer)
+    duracao_menstruacao = Column(Integer)  # dias de sangramento; NULL = não informado (vale 5)
     altura = Column(Numeric)
     peso_atual = Column(Numeric)
     objetivo = Column(Text)

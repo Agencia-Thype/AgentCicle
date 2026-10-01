@@ -138,7 +138,9 @@ def obter_treino_por_fase(email: str, db: Session):
     # Nota: Sempre fazemos uma nova consulta à base para garantir que temos os dados mais recentes
     db.refresh(usuario)  # Garante que temos os dados mais atualizados do usuário
     
-    fase_info = calcular_fase_do_ciclo(str(usuario.data_menstruacao), usuario.duracao_ciclo or 28)
+    fase_info = calcular_fase_do_ciclo(
+        str(usuario.data_menstruacao), usuario.duracao_ciclo, duracao_menstruacao=usuario.duracao_menstruacao
+    )
     fase = fase_info["fase"]
     print(f"DEBUG: Fase calculada: '{fase}'")
     proximo_treino = definir_treino_do_dia(db, usuario.id, fase)

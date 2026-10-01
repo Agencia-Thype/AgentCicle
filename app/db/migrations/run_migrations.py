@@ -24,6 +24,7 @@ from app.db.migrations.add_kegel_diario import criar_tabela_kegel_diario
 from app.db.migrations.add_rotina import criar_tabelas_rotina
 from app.db.migrations.add_compras_loja import criar_tabela_compras_loja
 from app.db.migrations.add_performance_indexes import criar_indices_performance
+from app.db.migrations.add_duracao_menstruacao import adicionar_campo_duracao_menstruacao
 
 def run_migrations():
     """Executa todas as migrações pendentes."""
@@ -63,6 +64,10 @@ def run_migrations():
 
         print("8/8 - Criando indices de performance...")
         criar_indices_performance()
+        print()
+
+        print("9/9 - Adicionando campo duracao_menstruacao à tabela usuarios...")
+        adicionar_campo_duracao_menstruacao()
         print()
 
         print("=" * 60)

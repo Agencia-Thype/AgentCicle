@@ -21,6 +21,7 @@ class PerfilUsuario(BaseModel):
     objetivo: Optional[str] = None
     data_menstruacao: Optional[date] = None
     duracao_ciclo: Optional[int] = None
+    duracao_menstruacao: Optional[int] = None
     imc: Optional[float] = None
     historico_peso: Optional[List[RegistroPeso]] = []
 
@@ -34,6 +35,7 @@ class AtualizarPerfilRequest(BaseModel):
     objetivo: Optional[str] = Field(None, max_length=200)
     data_menstruacao: Optional[date]
     duracao_ciclo: Optional[int] = None
+    duracao_menstruacao: Optional[int] = Field(None, ge=1, le=10)
 
 
 class AtualizarPerfil(BaseModel):
@@ -43,6 +45,7 @@ class AtualizarPerfil(BaseModel):
     objetivo: Optional[str] = None
     data_menstruacao: Optional[date] = None
     duracao_ciclo: Optional[int] = None
+    duracao_menstruacao: Optional[int] = None
 
     class Config:
         from_attributes = True

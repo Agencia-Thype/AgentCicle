@@ -38,7 +38,9 @@ def conversar_ia(
         raise HTTPException(status_code=404, detail="Usuária sem menstruação registrada")
 
     hoje = date.today()
-    fase_info = calcular_fase_do_ciclo(str(usuario.data_menstruacao), usuario.duracao_ciclo)
+    fase_info = calcular_fase_do_ciclo(
+        str(usuario.data_menstruacao), usuario.duracao_ciclo, duracao_menstruacao=usuario.duracao_menstruacao
+    )
     fase_atual = fase_info["fase"]
     fase_chave = MAPEAMENTO_FASES.get(fase_atual)
 
@@ -106,7 +108,9 @@ def mensagem_entrada_ia(
         raise HTTPException(status_code=404, detail="Usuária sem menstruação registrada")
 
     hoje = date.today()
-    fase_info = calcular_fase_do_ciclo(str(usuario.data_menstruacao), usuario.duracao_ciclo)
+    fase_info = calcular_fase_do_ciclo(
+        str(usuario.data_menstruacao), usuario.duracao_ciclo, duracao_menstruacao=usuario.duracao_menstruacao
+    )
     fase_atual = fase_info["fase"]
     fase_chave = MAPEAMENTO_FASES.get(fase_atual)
 

@@ -99,7 +99,9 @@ async def concluir_treino(
         # E descomentar esta linha:
         # return {"erro": "Seu período de avaliação expirou. Assine para continuar registrando treinos e ganhando pontos."}
 
-    fase_info = calcular_fase_do_ciclo(str(usuario.data_menstruacao), usuario.duracao_ciclo or 28)
+    fase_info = calcular_fase_do_ciclo(
+        str(usuario.data_menstruacao), usuario.duracao_ciclo, duracao_menstruacao=usuario.duracao_menstruacao
+    )
     fase = fase_info["fase"]
     percentual = min(max(float(dados.percentual), 0), 100)
     # Sem repetições, mantendo a ordem em que vieram.

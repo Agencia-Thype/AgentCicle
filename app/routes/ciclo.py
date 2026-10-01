@@ -59,7 +59,7 @@ def editar_data_menstruacao(
     db.commit()
 
     # Recalcular a fase atual
-    fase_atual = calcular_fase_do_ciclo(data_nova, usuario.duracao_ciclo)
+    fase_atual = calcular_fase_do_ciclo(data_nova, usuario.duracao_ciclo, duracao_menstruacao=usuario.duracao_menstruacao)
 
     return {
         "mensagem": "Registro de menstruação atualizado com sucesso",
@@ -79,40 +79,15 @@ def fase_por_data(
     if not usuario or not usuario.data_menstruacao or not usuario.duracao_ciclo:
         raise HTTPException(status_code=400, detail="Usuária sem dados completos do ciclo")
 
-    inicio_ciclo = usuario.data_menstruacao
-    duracao = usuario.duracao_ciclo
-    dias_passados = (data - inicio_ciclo).days % duracao
-
-    # Define durações proporcionais
-    duracao_menstruacao = round(duracao * 0.18)  # ~5 dias
-    duracao_folicular = round(duracao * 0.32)    # ~9 dias
-    duracao_ovulacao = round(duracao * 0.14)     # ~4 dias
-    duracao_lutea = duracao - (duracao_menstruacao + duracao_folicular + duracao_ovulacao)
-
-    fases = [
-        ("Menstruação", duracao_menstruacao, "Fase reflexiva 🌑"),
-        ("Folicular", duracao_folicular, "Fase dinâmica 🌒"),
-        ("Ovulatória", duracao_ovulacao, "Fase expansiva 🌕"),
-        ("Lútea", duracao_lutea, "Fase criativa 🌘"),
-    ]
-
-    acumulado = 0
-    for nome, dur, mensagem in fases:
-        if acumulado <= dias_passados < acumulado + dur:
-            return {
-                "data": data,
-                "fase": nome,
-                "mensagem": mensagem,
-                "dias_desde_menstruacao": dias_passados,
-                "inicio_ciclo": inicio_ciclo
-            }
-        acumulado += dur
-
+    info = calcular_fase_do_ciclo(
+        usuario.data_menstruacao, usuario.duracao_ciclo, data, duracao_menstruacao=usuario.duracao_menstruacao
+    )
     return {
         "data": data,
-        "fase": "Desconhecida",
-        "mensagem": "Não foi possível determinar a fase",
-        "dias_desde_menstruacao": dias_passados
+        "fase": info["fase"],
+        "mensagem": info["mensagem"],
+        "dias_desde_menstruacao": info["dias_desde_menstruacao"],
+        "inicio_ciclo": usuario.data_menstruacao,
     }
 
 @router.get("/fase-ciclo")
@@ -124,38 +99,18 @@ def detectar_fase_ciclo(
     if not usuario or not usuario.data_menstruacao or not usuario.duracao_ciclo:
         raise HTTPException(status_code=400, detail="Usuária sem dados completos do ciclo")
 
-    hoje = date.today()
-    inicio_ciclo = usuario.data_menstruacao
-    duracao = usuario.duracao_ciclo
-    dias_passados = (hoje - inicio_ciclo).days % duracao
-
-    # Define durações baseadas na duração do ciclo
-    duracao_menstruacao = round(duracao * 0.18)
-    duracao_folicular = round(duracao * 0.32)
-    duracao_ovulacao = round(duracao * 0.14)
-    duracao_lutea = duracao - (duracao_menstruacao + duracao_folicular + duracao_ovulacao)
-
-    fases = [
-        ("Menstruação", duracao_menstruacao, "Fase reflexiva 🌑"),
-        ("Folicular", duracao_folicular, "Fase dinâmica 🌒"),
-        ("Ovulatória", duracao_ovulacao, "Fase expansiva 🌕"),
-        ("Lútea", duracao_lutea, "Fase criativa 🌘")
-    ]
-
-    acumulado = 0
-    for nome, dur, mensagem in fases:
-        if acumulado <= dias_passados < acumulado + dur:
-            return {
-                "fase": nome,
-                "mensagem": mensagem,
-                "dias_desde_menstruacao": dias_passados,
-                "duracao_ciclo": duracao,
-                "inicio_ciclo": inicio_ciclo,
-            }
-        acumulado += dur
-
+    info = calcular_fase_do_ciclo(
+        usuario.data_menstruacao, usuario.duracao_ciclo, duracao_menstruacao=usuario.duracao_menstruacao
+    )
     return {
-        "fase": "Desconhecida",
-        "mensagem": "Não foi possível calcular a fase",
-        "dias_desde_menstruacao": dias_passados,
+        "fase": info["fase"],
+        "mensagem": info["mensagem"],
+        "dias_desde_menstruacao": info["dias_desde_menstruacao"],
+        "duracao_ciclo": info["duracao_ciclo"],
+        "duracao_menstruacao": info["duracao_menstruacao"],
+        "inicio_ciclo": usuario.data_menstruacao,
+        # O app pinta o calendário com estes limites, sem refazer a conta.
+        "fases": info["fases"],
+        "dia_ovulacao": info["dia_ovulacao"],
+        "janela_fertil": info["janela_fertil"],
     }
