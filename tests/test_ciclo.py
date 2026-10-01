@@ -179,3 +179,35 @@ class TestCicloEndpointsIntegracao:
 
         response = client.put("/editar-menstruacao", headers=headers_auth, json=dados_edicao)
         assert response.status_code in [200, 404]
+
+
+class TestProximaFase:
+    """Dias até a próxima fase, usados no card da Home."""
+
+    @pytest.mark.parametrize(
+        "duracao, dias_passados, fase, proxima, faltam",
+        [
+            (28, 0, "Menstruação", "Folicular", 7),
+            (28, 6, "Menstruação", "Folicular", 1),
+            (28, 7, "Folicular", "Ovulatória", 7),
+            (28, 16, "Ovulatória", "Lútea", 1),
+            (28, 17, "Lútea", "Menstruação", 11),
+            (28, 27, "Lútea", "Menstruação", 1),
+            (35, 34, "Lútea", "Menstruação", 1),
+            (21, 0, "Menstruação", "Folicular", 5),
+        ],
+    )
+    def test_dias_para_proxima_fase(self, duracao, dias_passados, fase, proxima, faltam):
+        from datetime import date, timedelta
+        from unittest.mock import patch
+        from app.services.ciclo_service import calcular_fase_do_ciclo
+
+        hoje = date(2026, 10, 1)
+        with patch("app.services.ciclo_service.hoje_brasilia", return_value=hoje):
+            info = calcular_fase_do_ciclo(hoje - timedelta(days=dias_passados), duracao)
+
+        assert info["fase"] == fase
+        assert info["dia_do_ciclo"] == dias_passados + 1
+        assert info["duracao_ciclo"] == duracao
+        assert info["proxima_fase"] == proxima
+        assert info["dias_para_proxima_fase"] == faltam

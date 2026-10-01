@@ -51,9 +51,14 @@ def calcular_fase_do_ciclo(data_menstruacao: Union[str, date], duracao_ciclo: in
     dias_passados = (hoje - inicio).days % duracao_ciclo
     
     # Recuperar a fase com base nos dias passados
-    for nome, inicio_dia, fim_dia, msg in fases:
+    for indice, (nome, inicio_dia, fim_dia, msg) in enumerate(fases):
         if inicio_dia <= dias_passados <= fim_dia:
+            # O último dia contado é duracao_ciclo - 1; depois dele o ciclo
+            # recomeça na menstruação.
+            ultimo_dia_fase = min(fim_dia, duracao_ciclo - 1)
             return {
+                "proxima_fase": fases[(indice + 1) % len(fases)][0],
+                "dias_para_proxima_fase": ultimo_dia_fase - dias_passados + 1,
                 "fase": nome,
                 "mensagem": msg,
                 "dias_desde_menstruacao": dias_passados,
