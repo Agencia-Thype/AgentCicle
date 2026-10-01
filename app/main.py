@@ -20,9 +20,12 @@ from app.routes import auth, ciclo, diario, fase_atual, ia_routes, perfil, pontu
 from app.routes import treino, assinatura, kegel, rotina, notificacoes_loja
 from dotenv import load_dotenv
 from app.utils.logging import log_request, Timer
+from app.utils.rede import preferir_ipv4
 
 # Carregar variáveis de ambiente
 load_dotenv()
+
+preferir_ipv4()
 
 app = FastAPI(title="API Ciclo Menstrual")
 
